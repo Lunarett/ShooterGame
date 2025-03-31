@@ -43,6 +43,14 @@ AWeaponBase::AWeaponBase()
 
 	// Initialize Variables
 	FireRate = 0.1f;
+	CurrentClipAmmo = AmmoData.ClipSize;
+}
+
+void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME(AWeaponBase, OwnerShooterCharacter);
 }
 
 void AWeaponBase::BeginPlay()
@@ -73,13 +81,8 @@ void AWeaponBase::Destroyed()
 	Super::Destroyed();
 }
 
-void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(AWeaponBase, OwnerShooterCharacter);
-}
-
+// Weapon Fire
 void AWeaponBase::BeginFire()
 {
 	if (!HasAuthority())
@@ -121,8 +124,9 @@ void AWeaponBase::HandleWeaponFire()
 		return;
 	}
 
-	OnWeaponFiredDelegate.Broadcast();
+	--CurrentClipAmmo;
 
+	// Play Weapon Fire Camera Shake
 	if (FireCameraShake)
 	{
 		if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0); IsValid(CameraManager))
@@ -130,10 +134,17 @@ void AWeaponBase::HandleWeaponFire()
 			CameraManager->StartCameraShake(FireCameraShake);
 		}
 	}
-	
+
+	// Trigger Weapon Fire Animation
 	MulticastPlayWeaponFireAnimation();
+
+	// Spawn Weapon Fire Muzzle Effect
 	MulticastPlayMuzzleEffect();
+
+	// Execute actual Fire Logic
 	FireWeapon();
+
+	OnWeaponFiredDelegate.Broadcast();
 }
 
 void AWeaponBase::ServerBeginFire_Implementation()
@@ -156,6 +167,19 @@ bool AWeaponBase::ServerEndFire_Validate()
 	return true;
 }
 
+
+// Weapon Reload
+void AWeaponBase::BeginReload()
+{
+	PlayReloadAnimation();
+}
+
+void AWeaponBase::EndReload()
+{
+}
+
+
+// Weapon VFX
 void AWeaponBase::MulticastPlayWeaponFireAnimation_Implementation()
 {
 	PlayWeaponFireAnimation();
@@ -166,6 +190,39 @@ void AWeaponBase::MulticastPlayMuzzleEffect_Implementation()
 	PlayMuzzleEffect();
 }
 
+void AWeaponBase::PlayMuzzleEffect()
+{
+	if (!MuzzleFlashEffect)
+	{
+		LOG_WARN_SCREEN("MuzzleFlashEffect is invalid! Cannot play muzzle effect.");
+		return;
+	}
+
+	// Get the appropriate weapon mesh
+	USkeletalMeshComponent* WeaponMesh = (OwnerShooterCharacter && OwnerShooterCharacter->IsLocallyControlled())
+		? FPWeaponMeshComponent
+		: TPWeaponMeshComponent;
+
+	if (!WeaponMesh)
+	{
+		LOG_ERROR_SCREEN("WeaponMesh is invalid! Cannot spawn attached muzzle effect.");
+		return;
+	}
+
+	// Spawn the Niagara system attached to the weapon mesh
+	UNiagaraComponent* NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+		MuzzleFlashEffect,                  // The Niagara System to spawn
+		WeaponMesh,                         // Attach to the weapon mesh
+		WeaponMuzzleSocketName,             // Attach to this socket name
+		FVector::ZeroVector,                // Location offset (relative to socket)
+		FRotator::ZeroRotator,              // Rotation offset (relative to socket)
+		EAttachLocation::SnapToTarget,      // Snap to the socket's transform
+		true                                // Auto-destroy when effect finishes
+	);
+}
+
+
+// Weapon Animations
 void AWeaponBase::PlayWeaponFireAnimation()
 {
 	// Check if the owning character is valid
@@ -207,53 +264,18 @@ void AWeaponBase::PlayWeaponFireAnimation()
 	}
 }
 
-void AWeaponBase::PlayMuzzleEffect()
+void AWeaponBase::PlayReloadAnimation()
 {
-	if (!MuzzleFlashEffect)
-	{
-		LOG_WARN_SCREEN("MuzzleFlashEffect is invalid! Cannot play muzzle effect.");
-		return;
-	}
-
-	// Get the appropriate weapon mesh
-	USkeletalMeshComponent* WeaponMesh = (OwnerShooterCharacter && OwnerShooterCharacter->IsLocallyControlled())
-		? FPWeaponMeshComponent
-		: TPWeaponMeshComponent;
-
-	if (!WeaponMesh)
-	{
-		LOG_ERROR_SCREEN("WeaponMesh is invalid! Cannot spawn attached muzzle effect.");
-		return;
-	}
-
-	// Spawn the Niagara system attached to the weapon mesh
-	UNiagaraComponent* NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		MuzzleFlashEffect,                  // The Niagara System to spawn
-		WeaponMesh,                         // Attach to the weapon mesh
-		WeaponMuzzleSocketName,             // Attach to this socket name
-		FVector::ZeroVector,                // Location offset (relative to socket)
-		FRotator::ZeroRotator,              // Rotation offset (relative to socket)
-		EAttachLocation::SnapToTarget,      // Snap to the socket's transform
-		true                                // Auto-destroy when effect finishes
-	);
 }
 
+
+// Helpers & Getters
 bool AWeaponBase::CanFire() const
 {
-	return true;
+	return CurrentClipAmmo > 0;
 }
 
 bool AWeaponBase::CanReload() const
 {
-	return true;
-}
-
-USkeletalMeshComponent* AWeaponBase::GetFPWeaponMeshComponent() const
-{
-	return FPWeaponMeshComponent;
-}
-
-USkeletalMeshComponent* AWeaponBase::GetTPWeaponMeshComponent() const
-{
-	return TPWeaponMeshComponent;
+	return !AmmoData.bInfiniteAmmo && CurrentClipAmmo < AmmoData.ClipSize;
 }

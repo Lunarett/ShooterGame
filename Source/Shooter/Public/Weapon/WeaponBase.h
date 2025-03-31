@@ -10,10 +10,8 @@ class UWeaponFireModeBase;
 class USkeletalMeshComponent;
 class UAnimMontage;
 class USoundCue;
-class UForceFeedbackEffect;
 class UNiagaraSystem;
 class USceneComponent;
-class UWeaponRecoilComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponFired);
 
@@ -22,15 +20,19 @@ struct FWeaponAmmoData
 {
 	GENERATED_BODY()
 
+	/* GameplayTag that will hold all types of ammo */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Ammo")
 	FGameplayTag AmmoTypeTag;
 
+	/* Total size of ammo per Magazine */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Ammo")
 	int32 ClipSize;
 
+	/* Setting this to true will prevent from requesting ammo */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Ammo Cheats")
 	bool bInfiniteAmmo;
 
+	/* Setting this to true will prevent the weapon from reloading */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Ammo Cheats")
 	bool bInfiniteClip;
 
@@ -48,9 +50,11 @@ struct FWeaponAnimationData
 {
 	GENERATED_BODY()
 
+	/* Animation that will be played from First-Person Perspective */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Anim")
 	UAnimMontage* FPAnimationMontage;
 
+	/* Animation that will be played from Third-Person Perspective */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Anim")
 	UAnimMontage* TPAnimationMontage;
 
@@ -78,6 +82,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	float FireRate;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Ammo")
+	FWeaponAmmoData AmmoData;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
 	FWeaponAnimationData WeaponFireAnimation;
@@ -108,47 +115,87 @@ private:
 	UPROPERTY(Replicated)
 	AShooterCharacter* OwnerShooterCharacter;
 
-	FTimerHandle FireTimerHandle;
+	UPROPERTY(Replicated)
+	int32 CurrentClipAmmo;
 
+	FTimerHandle FireTimerHandle;
+	FTimerHandle ReloadTimerHandle;
+	
+protected:
 	UPROPERTY(BlueprintAssignable)
 	FOnWeaponFired OnWeaponFiredDelegate;
 	
 protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
 	virtual void BeginPlay() override;
 	virtual void Destroyed() override;
 
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
 
+// Weapon Fire
 public:
+	/* Based on FireMode, Begin the Fire Behavior */
 	virtual void BeginFire();
+
+	/* Terminate Fire Behavior */
 	virtual void EndFire();
 
 protected:
-	virtual void HandleWeaponFire();
-	virtual void FireWeapon() PURE_VIRTUAL(AShooterWeapon::FireWeapon,);
-
+	/* RPC - Executes BeginFire on the server */
 	UFUNCTION(reliable, server, WithValidation)
 	void ServerBeginFire();
 
+	/* RPC - Executes EndFire on the server */
 	UFUNCTION(reliable, server, WithValidation)
 	void ServerEndFire();
-
+	
 protected:
+	/* Triggers everything that should usually happen when weapon is fired */
+	virtual void HandleWeaponFire();
+
+	/* Abstract Method - Actual Fire Logic - Override it in your child class and implement the Fire Logic */
+	virtual void FireWeapon() PURE_VIRTUAL(AShooterWeapon::FireWeapon,);
+
+
+	
+// Weapon Reload
+public:
+	/* If Ammo is < MaxClipSize Reload Weapon */
+	virtual void BeginReload();
+	
+private:
+	/* Called when reload is completed */
+	virtual void EndReload();
+
+
+	
+// VFX
+private:
+	/* Spawns Muzzle Niagara Particle Effect */
+	void PlayMuzzleEffect();
+
+	// Multicast - Calls PlayMuzzleEffect
+	UFUNCTION(NetMulticast, reliable)
+	void MulticastPlayMuzzleEffect();
+
+
+	
+// Weapon Animation
+private:
+	/* Plays Fire Animation */
+	void PlayWeaponFireAnimation();
+
+	/* Plays Reload Animation */
+	void PlayReloadAnimation();
+	
 	// Animations - Multicast
 	UFUNCTION(NetMulticast, reliable)
 	void MulticastPlayWeaponFireAnimation();
 
-	// Effects - Multicast
-	UFUNCTION(NetMulticast, reliable)
-	void MulticastPlayMuzzleEffect();
 
-private:
-	// Animations
-	void PlayWeaponFireAnimation();
 
-	// Effects
-	void PlayMuzzleEffect();
-
+// Helpers & Getters
 protected:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool CanFire() const;
@@ -161,11 +208,14 @@ public:
 	FORCEINLINE AShooterCharacter* GetOwnerShooterCharacter() const { return OwnerShooterCharacter; }
 	
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	USkeletalMeshComponent* GetFPWeaponMeshComponent() const;
+	FORCEINLINE USkeletalMeshComponent* GetFPWeaponMeshComponent() const { return FPWeaponMeshComponent; }
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	USkeletalMeshComponent* GetTPWeaponMeshComponent() const;
+	FORCEINLINE USkeletalMeshComponent* GetTPWeaponMeshComponent() const { return TPWeaponMeshComponent; }
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	FORCEINLINE FVector GetWeaponOffset() const { return WeaponOffset; } 
+	FORCEINLINE FVector GetWeaponOffset() const { return WeaponOffset; }
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	FORCEINLINE FWeaponAmmoData GetAmmoData() const { return AmmoData; }
 };

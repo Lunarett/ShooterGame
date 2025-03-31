@@ -1,4 +1,4 @@
-#include "ProjectileWeapon.h"
+#include "Weapon/ProjectileWeapon.h"
 #include "Weapon/Projectile.h"
 #include "Player/ShooterCharacter.h"
 #include "Engine/World.h"

@@ -95,6 +95,15 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	}
 }
 
+void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AShooterCharacter, WeaponActor);
+	DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
+	DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
+}
+
 void AShooterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -106,7 +115,7 @@ void AShooterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Update Aim Offsets on the server
+	// Server: Update AimOffsets - ThirdPerson Aiming
 	if (HasAuthority())
 	{
 		FRotator AimOffsets = GetBaseAimRotation();
@@ -115,15 +124,6 @@ void AShooterCharacter::Tick(float DeltaTime)
 		AimOffsetPitch = FMath::Clamp(AimOffsets.Pitch, -90.0f, 90.0f);
 		AimOffsetYaw   = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
 	}
-}
-
-void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(AShooterCharacter, WeaponActor);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
 }
 
 void AShooterCharacter::HandleMoveInput(const FInputActionValue& Value)
@@ -198,19 +198,21 @@ void AShooterCharacter::SpawnWeapon()
 		return;
 	}
 
-	// Initialize Spawn Parameters
+	// Initialize Spawn Parameters for Spawning Weapon
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.Owner = this;
 	SpawnParameters.Instigator = this;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
+	// Spawn Weapon Actor
 	WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, SpawnParameters);
 	if (!IsValid(WeaponActor))
 	{
 		LOG_ERROR(TEXT("Spawn failed, WeaponActor is invalid!"));
 		return;
 	}
-	
+
+	// Attach Weapon to Character SkeletalMesh
 	OnRep_WeaponActor();
 }
 
@@ -221,17 +223,16 @@ void AShooterCharacter::AttachWeaponToMesh()
 		return;
 	}
 
-	// Attach and set offset for FP weapon mesh
+	// Attach and apply offset for FP weapon mesh
 	WeaponActor->GetFPWeaponMeshComponent()->AttachToComponent(
 		FPMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, WeaponSocketName);
 	WeaponActor->GetFPWeaponMeshComponent()->SetRelativeLocation(WeaponActor->GetWeaponOffset());
 
-	// Attach and set offset for TP weapon mesh
+	// Attach and apply offset for TP weapon mesh
 	WeaponActor->GetTPWeaponMeshComponent()->AttachToComponent(
 		GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, WeaponSocketName);
 	WeaponActor->GetTPWeaponMeshComponent()->SetRelativeLocation(WeaponActor->GetWeaponOffset());
 }
-
 
 void AShooterCharacter::OnRep_WeaponActor()
 {

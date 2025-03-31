@@ -67,14 +67,6 @@ void AProjectile::BeginPlay()
 	);
 }
 
-void AProjectile::FireInDirection(const FVector& ShootDirection)
-{
-	if (ProjectileMovementComponent)
-	{
-		ProjectileMovementComponent->Velocity = ShootDirection * ProjectileMovementComponent->InitialSpeed;
-	}
-}
-
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	// Only apply damage if we hit a valid actor that is not our owner.
@@ -84,29 +76,45 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 		UGameplayStatics::ApplyPointDamage(OtherActor, DamageAmount, ProjectileMovementComponent->Velocity.GetSafeNormal(), Hit, GetInstigatorController(), this, UDamageType::StaticClass());
 	}
 
-	// Spawn the impact effect.
-	if (ImpactEffect)
-	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ImpactEffect, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
-	}
-
-	if (ImpactDecalMaterial)
-	{
-		UGameplayStatics::SpawnDecalAtLocation(
-			GetWorld(),
-			ImpactDecalMaterial,
-			DecalSize,
-			Hit.ImpactPoint,
-			Hit.ImpactNormal.Rotation()
-		);
-	}
-
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 6.0f, FColor::Red, FString::Printf(TEXT("%s"), *OtherActor->GetName()));
-	}
-
+	SpawnImpactEffect(Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+	SpawnDecal(Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+		
+	// Self Destruct on Impact
 	Destroy();
+}
+
+void AProjectile::FireInDirection(const FVector& ShootDirection)
+{
+	if (ProjectileMovementComponent)
+	{
+		ProjectileMovementComponent->Velocity = ShootDirection * ProjectileMovementComponent->InitialSpeed;
+	}
+}
+
+void AProjectile::SpawnImpactEffect(const FVector& Location, const FRotator& Rotation)
+{
+	if (!ImpactEffect)
+	{
+		return;
+	}
+	
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ImpactEffect, Location, Rotation);
+}
+
+void AProjectile::SpawnDecal(const FVector& Location, const FRotator& Rotation)
+{
+	if (!ImpactDecalMaterial)
+	{
+		return;
+	}
+	
+	UGameplayStatics::SpawnDecalAtLocation(
+		GetWorld(),
+		ImpactDecalMaterial,
+		DecalSize,
+		Location,
+		Rotation
+	);
 }
 
 void AProjectile::OnLifetimeExpired()

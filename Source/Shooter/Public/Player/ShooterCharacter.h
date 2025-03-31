@@ -97,15 +97,14 @@ protected:
 
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
-public:
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
 private:
+	/* Character Player Input */
 	void HandleMoveInput(const FInputActionValue& Value);
 	void HandleLookInput(const FInputActionValue& Value);
 	void HandleBeginFireInput(const FInputActionValue& Value);
@@ -118,7 +117,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void EndFire();
 
-protected:
+private:
 	void SpawnWeapon();
 	void AttachWeaponToMesh();
 

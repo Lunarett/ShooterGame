@@ -1,4 +1,3 @@
-// Projectile.h
 #pragma once
 
 #include "CoreMinimal.h"
@@ -18,16 +17,7 @@ class SHOOTER_API AProjectile : public AActor
 public:	
 	AProjectile();
 
-	void FireInDirection(const FVector& ShootDirection);
-
 protected:
-	virtual void BeginPlay() override;
-
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-
-	void OnLifetimeExpired();
-
 	// Components
 	UPROPERTY(VisibleDefaultsOnly, Category = "Projectile")
 	USphereComponent* CollisionComponent;
@@ -56,4 +46,21 @@ protected:
 
 private:
 	FTimerHandle LifetimeTimerHandle;
+
+protected:
+	virtual void BeginPlay() override;
+
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	
+public:
+	// Call this when firing projectile. This determines the direction the projectile gets fired in
+	void FireInDirection(const FVector& ShootDirection);
+
+private:
+	// VFX
+	void SpawnImpactEffect(const FVector& Location, const FRotator& Rotation);
+	void SpawnDecal(const FVector& Location, const FRotator& Rotation);
+
+	void OnLifetimeExpired();
 };
