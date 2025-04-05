@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Weapon/AmmoProvider.h"
 #include "ShooterCharacter.generated.h"
 
+class UInventoryComponent;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLookInputChanged, FVector2D, MouseDelta);
 
 class USkeletalMeshComponent;
@@ -17,7 +19,7 @@ class AWeaponBase;
 struct FInputActionValue;
 
 UCLASS()
-class SHOOTER_API AShooterCharacter : public ACharacter
+class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
 {
 	GENERATED_BODY()
 
@@ -36,7 +38,7 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	USceneComponent* OffsetRootSceneComponent;
-	
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	USkeletalMeshComponent* FPMesh;
 
@@ -49,13 +51,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	UCameraComponent* CameraComponent;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UInventoryComponent* InventoryComponent;
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
 	float LookSensitivity = 0.5f;
-	
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
 	FName WeaponSocketName;
-	
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
 	TSubclassOf<AWeaponBase> WeaponClass;
 
@@ -78,10 +83,22 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input",
 		meta = (AllowPrivateAccess = "true"))
+	UInputAction* ReloadInputAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input",
+		meta = (AllowPrivateAccess = "true"))
+	UInputAction* NextWeaponInputAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input",
+		meta = (AllowPrivateAccess = "true"))
+	UInputAction* PreviousWeaponInputAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input",
+		meta = (AllowPrivateAccess = "true"))
 	UInputAction* JumpInputAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input",
-	meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true"))
 	UInputAction* FireInputAction;
 
 private:
@@ -109,6 +126,7 @@ private:
 	void HandleLookInput(const FInputActionValue& Value);
 	void HandleBeginFireInput(const FInputActionValue& Value);
 	void HandleEndFireInput(const FInputActionValue& Value);
+	void HandleWeaponReloadInput(const FInputActionValue& Value);
 
 public:
 	UFUNCTION(BlueprintCallable)
@@ -116,6 +134,11 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void EndFire();
+
+	UFUNCTION(BlueprintCallable)
+	void ReloadWeapon();
+
+	virtual int32 RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmount) override;
 
 private:
 	void SpawnWeapon();
@@ -127,10 +150,10 @@ private:
 public:
 	UFUNCTION(BlueprintCallable, Category = "Shooter Character")
 	bool IsPawnAIControlled() const;
-	
+
 	UFUNCTION(BlueprintCallable, Category = "AimOffset")
 	void GetAimOffsetValues(float& OutYaw, float& OutPitch) const;
-	
+
 	FORCEINLINE USkeletalMeshComponent* GetFPMeshComponent() const { return FPMesh; }
 	FORCEINLINE USkeletalMeshComponent* GetTPMeshComponent() const { return GetMesh(); }
 };

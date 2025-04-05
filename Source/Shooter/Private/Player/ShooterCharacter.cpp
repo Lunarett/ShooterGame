@@ -9,6 +9,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Weapon/WeaponBase.h"
 #include "AIController.h"
+#include "Inventory/InventoryComponent.h"
 
 
 AShooterCharacter::AShooterCharacter()
@@ -71,6 +72,8 @@ AShooterCharacter::AShooterCharacter()
 	GetCharacterMovement()->JumpZVelocity = 720.0f;
 	GetCharacterMovement()->AirControl = 2.0f;
 	GetCharacterMovement()->AirControlBoostMultiplier = 4.0f;
+
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 	
 	// Initialize Variables
 	WeaponSocketName = TEXT("WeaponPoint");
@@ -92,6 +95,9 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		                                   &AShooterCharacter::HandleBeginFireInput);
 		EnhancedInputComponent->BindAction(FireInputAction, ETriggerEvent::Completed, this,
 		                                   &AShooterCharacter::HandleEndFireInput);
+
+		EnhancedInputComponent->BindAction(ReloadInputAction, ETriggerEvent::Started, this,
+								   &AShooterCharacter::HandleBeginFireInput);
 	}
 }
 
@@ -169,6 +175,11 @@ void AShooterCharacter::HandleEndFireInput(const FInputActionValue& Value)
 	EndFire();
 }
 
+void AShooterCharacter::HandleWeaponReloadInput(const FInputActionValue& Value)
+{
+	ReloadWeapon();
+}
+
 void AShooterCharacter::BeginFire()
 {
 	if (WeaponActor)
@@ -183,6 +194,33 @@ void AShooterCharacter::EndFire()
 	{
 		WeaponActor->EndFire();
 	}
+}
+
+void AShooterCharacter::ReloadWeapon()
+{
+	if (WeaponActor)
+	{
+		WeaponActor->BeginReload();
+	}
+}
+
+int32 AShooterCharacter::RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmount)
+{
+	if (!InventoryComponent)
+	{
+		return 0;
+	}
+
+	const int32 Available = InventoryComponent->GetAmmo(AmmoType);
+	if (Available <= 0)
+	{
+		return 0;
+	}
+
+	const int32 Provided = FMath::Min(RequestedAmount, Available);
+	InventoryComponent->ConsumeAmmo(AmmoType, Provided);
+
+	return Provided;
 }
 
 void AShooterCharacter::SpawnWeapon()

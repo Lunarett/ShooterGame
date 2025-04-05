@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/ShooterCharacter.h"
+#include "Weapon/AmmoProvider.h"
 #include "Weapon/WeaponFireModeBase.h"
 
 AWeaponBase::AWeaponBase()
@@ -43,6 +44,7 @@ AWeaponBase::AWeaponBase()
 
 	// Initialize Variables
 	FireRate = 0.1f;
+	ReloadDuration = 1.0f;
 	CurrentClipAmmo = AmmoData.ClipSize;
 }
 
@@ -171,25 +173,44 @@ bool AWeaponBase::ServerEndFire_Validate()
 // Weapon Reload
 void AWeaponBase::BeginReload()
 {
-	PlayReloadAnimation();
+	if (!CanReload()) return;
+
+	if (!HasAuthority())
+	{
+		ServerBeginReload();
+		return;
+	}
+
+	GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &AWeaponBase::EndReload, ReloadDuration, false);
 }
 
 void AWeaponBase::EndReload()
 {
+	if (!OwnerShooterCharacter)
+	{
+		return;
+	}
+	
+	if (IAmmoProvider* AmmoProvider = Cast<IAmmoProvider>(OwnerShooterCharacter))
+	{
+		const int32 AmmoNeeded = AmmoData.ClipSize - CurrentClipAmmo;
+		const int32 AmmoReceived = AmmoProvider->RequestAmmo(AmmoData.AmmoTypeTag, AmmoNeeded);
+		CurrentClipAmmo += AmmoReceived;
+	}
+}
+
+void AWeaponBase::ServerBeginReload_Implementation()
+{
+	BeginReload();
+}
+
+bool AWeaponBase::ServerBeginReload_Validate()
+{
+	return true;
 }
 
 
 // Weapon VFX
-void AWeaponBase::MulticastPlayWeaponFireAnimation_Implementation()
-{
-	PlayWeaponFireAnimation();
-}
-
-void AWeaponBase::MulticastPlayMuzzleEffect_Implementation()
-{
-	PlayMuzzleEffect();
-}
-
 void AWeaponBase::PlayMuzzleEffect()
 {
 	if (!MuzzleFlashEffect)
@@ -221,9 +242,13 @@ void AWeaponBase::PlayMuzzleEffect()
 	);
 }
 
+void AWeaponBase::MulticastPlayMuzzleEffect_Implementation()
+{
+	PlayMuzzleEffect();
+}
 
-// Weapon Animations
-void AWeaponBase::PlayWeaponFireAnimation()
+
+void AWeaponBase::PlayAnimationMontage(FWeaponAnimationData AnimationData)
 {
 	// Check if the owning character is valid
 	if (!IsValid(OwnerShooterCharacter))
@@ -236,12 +261,12 @@ void AWeaponBase::PlayWeaponFireAnimation()
 	const bool bIsLocallyControlled = OwnerShooterCharacter->IsLocallyControlled();
 
 	// Play First-Person Animation if locally controlled
-	if (bIsLocallyControlled && WeaponFireAnimation.FPAnimationMontage)
+	if (bIsLocallyControlled && AnimationData.FPAnimationMontage)
 	{
-		USkeletalMeshComponent* FPMesh = OwnerShooterCharacter->GetFPMeshComponent();
+		const USkeletalMeshComponent* FPMesh = OwnerShooterCharacter->GetFPMeshComponent();
 		if (FPMesh && FPMesh->GetAnimInstance())
 		{
-			FPMesh->GetAnimInstance()->Montage_Play(WeaponFireAnimation.FPAnimationMontage);
+			FPMesh->GetAnimInstance()->Montage_Play(AnimationData.FPAnimationMontage);
 		}
 		else
 		{
@@ -250,12 +275,12 @@ void AWeaponBase::PlayWeaponFireAnimation()
 	}
 
 	// Play Third-Person Animation for non-local players or on remote clients
-	if (!bIsLocallyControlled && WeaponFireAnimation.TPAnimationMontage)
+	if (!bIsLocallyControlled && AnimationData.TPAnimationMontage)
 	{
-		USkeletalMeshComponent* TPMesh = OwnerShooterCharacter->GetTPMeshComponent();
+		const USkeletalMeshComponent* TPMesh = OwnerShooterCharacter->GetTPMeshComponent();
 		if (TPMesh && TPMesh->GetAnimInstance())
 		{
-			TPMesh->GetAnimInstance()->Montage_Play(WeaponFireAnimation.TPAnimationMontage);
+			TPMesh->GetAnimInstance()->Montage_Play(AnimationData.TPAnimationMontage);
 		}
 		else
 		{
@@ -264,10 +289,15 @@ void AWeaponBase::PlayWeaponFireAnimation()
 	}
 }
 
-void AWeaponBase::PlayReloadAnimation()
+void AWeaponBase::MulticastPlayWeaponFireAnimation_Implementation()
 {
+	PlayAnimationMontage(WeaponFireAnimation);
 }
 
+void AWeaponBase::MulticastPlayWeaponReloadAnimation_Implementation()
+{
+	PlayAnimationMontage(WeaponReloadAnimation);
+}
 
 // Helpers & Getters
 bool AWeaponBase::CanFire() const

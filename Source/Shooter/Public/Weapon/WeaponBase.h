@@ -83,11 +83,17 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	float FireRate;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+	float ReloadDuration;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Ammo")
 	FWeaponAmmoData AmmoData;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
 	FWeaponAnimationData WeaponFireAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	FWeaponAnimationData WeaponReloadAnimation;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Effects")
 	FName WeaponMuzzleSocketName;
@@ -168,6 +174,10 @@ private:
 	/* Called when reload is completed */
 	virtual void EndReload();
 
+	/* RPC - Executes BeginReload on the server */
+	UFUNCTION(reliable, server, WithValidation)
+	void ServerBeginReload();
+
 
 	
 // VFX
@@ -184,14 +194,14 @@ private:
 // Weapon Animation
 private:
 	/* Plays Fire Animation */
-	void PlayWeaponFireAnimation();
-
-	/* Plays Reload Animation */
-	void PlayReloadAnimation();
+	void PlayAnimationMontage(FWeaponAnimationData AnimationData);
 	
 	// Animations - Multicast
 	UFUNCTION(NetMulticast, reliable)
 	void MulticastPlayWeaponFireAnimation();
+
+	UFUNCTION(NetMulticast, reliable)
+	void MulticastPlayWeaponReloadAnimation();
 
 
 
