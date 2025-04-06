@@ -125,7 +125,7 @@ void AWeaponBase::HandleWeaponFire()
 	{
 		return;
 	}
-
+	
 	--CurrentClipAmmo;
 
 	// Play Weapon Fire Camera Shake
@@ -147,6 +147,12 @@ void AWeaponBase::HandleWeaponFire()
 	FireWeapon();
 
 	OnWeaponFiredDelegate.Broadcast();
+
+	// If we consumed our last bullet, call reload
+	if (bAutoReload && CurrentClipAmmo <= 0)
+	{
+		BeginReload();
+	}
 }
 
 void AWeaponBase::ServerBeginFire_Implementation()
@@ -173,7 +179,10 @@ bool AWeaponBase::ServerEndFire_Validate()
 // Weapon Reload
 void AWeaponBase::BeginReload()
 {
-	if (!CanReload()) return;
+	if (!CanReload())
+	{
+		return;
+	}
 
 	if (!HasAuthority())
 	{
@@ -181,6 +190,10 @@ void AWeaponBase::BeginReload()
 		return;
 	}
 
+	bIsReloadingWeapon = true;
+
+	MulticastPlayWeaponReloadAnimation();
+	
 	GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &AWeaponBase::EndReload, ReloadDuration, false);
 }
 
@@ -190,13 +203,15 @@ void AWeaponBase::EndReload()
 	{
 		return;
 	}
-	
+
 	if (IAmmoProvider* AmmoProvider = Cast<IAmmoProvider>(OwnerShooterCharacter))
 	{
 		const int32 AmmoNeeded = AmmoData.ClipSize - CurrentClipAmmo;
 		const int32 AmmoReceived = AmmoProvider->RequestAmmo(AmmoData.AmmoTypeTag, AmmoNeeded);
 		CurrentClipAmmo += AmmoReceived;
 	}
+
+	bIsReloadingWeapon = false;
 }
 
 void AWeaponBase::ServerBeginReload_Implementation()
@@ -302,10 +317,10 @@ void AWeaponBase::MulticastPlayWeaponReloadAnimation_Implementation()
 // Helpers & Getters
 bool AWeaponBase::CanFire() const
 {
-	return CurrentClipAmmo > 0;
+	return CurrentClipAmmo > 0 && !bIsReloadingWeapon;
 }
 
 bool AWeaponBase::CanReload() const
 {
-	return !AmmoData.bInfiniteAmmo && CurrentClipAmmo < AmmoData.ClipSize;
+	return !bIsReloadingWeapon && !AmmoData.bInfiniteAmmo && CurrentClipAmmo < AmmoData.ClipSize;
 }

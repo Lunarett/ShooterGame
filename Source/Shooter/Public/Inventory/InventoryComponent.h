@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Components/ActorComponent.h"
+#include "Debug/LoggerMacros.h"
 #include "Weapon/AmmoProvider.h"
 #include "InventoryComponent.generated.h"
 
@@ -66,8 +67,14 @@ private:
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Weapon")
-	FORCEINLINE int32 GetAmmo(FGameplayTag AmmoTypeTag) const
+	FORCEINLINE int32 GetAmmo(const FGameplayTag AmmoTypeTag) const
 	{
+		if (!AmmoTypeTag.IsValid())
+		{
+			LOG_ERROR("Ammo Type is invalid");
+			return 0;
+		}
+		
 		return AmmoMap[AmmoTypeTag];
 	}
 

@@ -84,6 +84,9 @@ protected:
 	float FireRate;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+	bool bAutoReload;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	float ReloadDuration;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Ammo")
@@ -126,6 +129,8 @@ private:
 
 	FTimerHandle FireTimerHandle;
 	FTimerHandle ReloadTimerHandle;
+
+	bool bIsReloadingWeapon;
 	
 protected:
 	UPROPERTY(BlueprintAssignable)

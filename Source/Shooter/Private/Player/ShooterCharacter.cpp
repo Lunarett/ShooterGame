@@ -97,7 +97,7 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		                                   &AShooterCharacter::HandleEndFireInput);
 
 		EnhancedInputComponent->BindAction(ReloadInputAction, ETriggerEvent::Started, this,
-								   &AShooterCharacter::HandleBeginFireInput);
+								   &AShooterCharacter::HandleWeaponReloadInput);
 	}
 }
 
@@ -198,7 +198,7 @@ void AShooterCharacter::EndFire()
 
 void AShooterCharacter::ReloadWeapon()
 {
-	if (WeaponActor)
+	if (WeaponActor && InventoryComponent->GetAmmo(WeaponActor->GetAmmoData().AmmoTypeTag))
 	{
 		WeaponActor->BeginReload();
 	}
