@@ -8,7 +8,7 @@
 #include "AmmoProvider.generated.h"
 
 // This class does not need to be modified.
-UINTERFACE()
+UINTERFACE(BlueprintType)
 class UAmmoProvider : public UInterface
 {
 	GENERATED_BODY()
@@ -28,5 +28,6 @@ public:
 	 * @param RequestedAmount The amount of ammo requested.
 	 * @return The amount of ammo successfully provided.
 	 */
-	virtual int32 RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmount) = 0;
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Ammo")
+	int32 RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmount);
 };

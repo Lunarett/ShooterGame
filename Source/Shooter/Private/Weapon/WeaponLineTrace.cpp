@@ -7,4 +7,5 @@ AWeaponLineTrace::AWeaponLineTrace()
 
 void AWeaponLineTrace::FireWeapon()
 {
+	// Didn't implement this yet because I do not have any beam particles yet to test...
 }

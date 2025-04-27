@@ -204,10 +204,10 @@ void AWeaponBase::EndReload()
 		return;
 	}
 
-	if (IAmmoProvider* AmmoProvider = Cast<IAmmoProvider>(OwnerShooterCharacter))
+	if (OwnerShooterCharacter && OwnerShooterCharacter->GetClass()->ImplementsInterface(UAmmoProvider::StaticClass()))
 	{
 		const int32 AmmoNeeded = AmmoData.ClipSize - CurrentClipAmmo;
-		const int32 AmmoReceived = AmmoProvider->RequestAmmo(AmmoData.AmmoTypeTag, AmmoNeeded);
+		const int32 AmmoReceived = IAmmoProvider::Execute_RequestAmmo(OwnerShooterCharacter, AmmoData.AmmoTypeTag, AmmoNeeded);
 		CurrentClipAmmo += AmmoReceived;
 	}
 

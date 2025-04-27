@@ -6,16 +6,19 @@
 #include "GameplayTagContainer.h"
 #include "Components/ActorComponent.h"
 #include "Debug/LoggerMacros.h"
-#include "Weapon/AmmoProvider.h"
+#include "Pickup/PickupActor.h"
+#include "Pickup/PickupReceiver.h"
 #include "InventoryComponent.generated.h"
 
 class AWeaponBase;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponEquipped, float, CoolDownDuration);
 
 /*
  * Very simple inventory system that holds ammo and scrolls between weapons
  */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class SHOOTER_API UInventoryComponent : public UActorComponent
+class SHOOTER_API UInventoryComponent : public UActorComponent, public IPickupReceiver
 {
 	GENERATED_BODY()
 
@@ -23,21 +26,45 @@ public:
 	UInventoryComponent();
 
 protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Weapon")
+	float EquipCooldownDuration = 0.7f;
+	
 	/* Stores amount of ammo the Pawn/Character possesses */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Ammo")
 	TMap<FGameplayTag, int32> AmmoMap;
 
-	/* Stores different unique weapons the Pawn/Character possesses */
+	/* List of all weapons the player will begin with */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Weapon")
-	TSet<AWeaponBase*> WeaponList;
+	TSet<TSubclassOf<AWeaponBase>> StartingWeaponList;
 
+	/* The *Actual* weapons list inside the inventory */
+	UPROPERTY(BlueprintReadWrite, Category = "Inventory|Weapon")
+	TArray<AWeaponBase*> WeaponList;
+
+	/* Currently equipped weapon. nullptr on this means that the weapon is currently unequipped */
 	UPROPERTY(BlueprintReadWrite, Category = "Inventory|Weapon")
 	AWeaponBase* EquippedWeapon;
+
+private:
+	bool bIsEquipActive;
+	
+	/* Index of weapon pending to be equipped */
+	int32 PendingEquipIndex = INDEX_NONE;
+
+	/* Internal timer handle for switching */
+	FTimerHandle EquipTimerHandle;
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnWeaponEquipped OnWeaponEquippedDelegate;
+	
+protected:
+	virtual void BeginPlay() override;
 
 public:
 	/* Adds a new Weapon to inventory */
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Weapon")
-	void AddWeapon(AWeaponBase* InWeapon);
+	void AddWeapon(TSubclassOf<AWeaponBase> InWeaponClass);
 
 	/* If Weapon exists in the list, remove it */
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Weapon")
@@ -61,9 +88,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Weapon")
 	void EquipPreviousWeapon();
 
-private:
 	/* Internal helper method for selecting/equipping weapons */
 	void EquipWeaponByIndex(const int32 InIndex);
+
+private:
+	/* Pickup Receiver Interface - Handle picking up Ammo or Weapon */
+	virtual void HandlePickup_Implementation(const FPickupData& PickupData) override;
+
+	
+	/* Handles hiding the other weapons in your inventory */
+	void SetWeaponRenderFocus(const AWeaponBase* NewWeaponFocus);
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory|Weapon")

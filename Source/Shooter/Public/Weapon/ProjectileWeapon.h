@@ -17,7 +17,7 @@ protected:
 
 	// The projectile class to spawn.
 	UPROPERTY(EditDefaultsOnly, Category = "Projectile")
-	TSubclassOf<class AProjectile> ProjectileClass;
+	TSubclassOf<class AProjectileBase> ProjectileClass;
 
 	// Bullet spread in degrees.
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon|Projectile")

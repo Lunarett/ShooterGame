@@ -1,6 +1,7 @@
 // HealthComponent.cpp
 #include "Health/HealthComponent.h"
 #include "GameFramework/Actor.h"
+#include "Pickup/PickupActor.h"
 
 UHealthComponent::UHealthComponent()
 {
@@ -32,6 +33,18 @@ void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, c
 
 	if (CurrentHealth <= 0.f)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s died"), *GetOwner()->GetName());
+	}
+}
+
+void UHealthComponent::Heal(float Amount)
+{
+	CurrentHealth = FMath::Clamp(CurrentHealth - Amount, 0.f, DefaultHealth);
+}
+
+void UHealthComponent::HandlePickup_Implementation(const FPickupData& PickupData)
+{
+	if (PickupData.PickupType == EPickupType::Health)
+	{
+		Heal(PickupData.HealthAmount);
 	}
 }

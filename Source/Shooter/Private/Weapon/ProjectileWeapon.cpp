@@ -1,5 +1,5 @@
 #include "Weapon/ProjectileWeapon.h"
-#include "Weapon/Projectile.h"
+#include "Weapon/ProjectileBase.h"
 #include "Player/ShooterCharacter.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
@@ -89,7 +89,7 @@ void AProjectileWeapon::FireWeapon()
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	// Spawn the projectile; note that since this is called on the server (or via an RPC), it will replicate to clients.
-	AProjectile* Projectile = GetWorld()->SpawnActor<AProjectile>(ProjectileClass, MuzzleLocation, SpreadFireDirection.Rotation(), SpawnParams);
+	AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, MuzzleLocation, SpreadFireDirection.Rotation(), SpawnParams);
 	if (Projectile)
 	{
 		// Let the projectile know its fire direction (with spread).

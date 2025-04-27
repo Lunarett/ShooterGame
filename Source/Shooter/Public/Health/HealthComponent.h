@@ -2,12 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Pickup/PickupReceiver.h"
 #include "HealthComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnHealthChangedSignature, UHealthComponent*, HealthComp, float, Health, float, Damage, AController*, InstigatedBy);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class SHOOTER_API UHealthComponent : public UActorComponent
+class SHOOTER_API UHealthComponent : public UActorComponent, public IPickupReceiver
 {
 	GENERATED_BODY()
 
@@ -30,4 +31,10 @@ protected:
 private:
 	UFUNCTION()
 	void HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+
+	void Heal(float Amount);
+	
+private:
+	/**/
+	virtual void HandlePickup_Implementation(const FPickupData& PickupData) override;
 };

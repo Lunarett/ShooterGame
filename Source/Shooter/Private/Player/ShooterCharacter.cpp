@@ -10,30 +10,26 @@
 #include "Weapon/WeaponBase.h"
 #include "AIController.h"
 #include "Inventory/InventoryComponent.h"
-
+#include "Animation/AnimInstance.h"
 
 AShooterCharacter::AShooterCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	SetReplicates(true);
 	bUseControllerRotationYaw = true;
-	bUseControllerRotationYaw = true;
 	bUseControllerRotationPitch = true;
 
-	// Initialize Pawn Capsule Collider
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 	GetCapsuleComponent()->SetCapsuleHalfHeight(96.0f);
 	GetCapsuleComponent()->SetCapsuleRadius(60.0f);
 
-	// Initialize Third Person Mesh
 	GetMesh()->bOnlyOwnerSee = false;
 	GetMesh()->bOwnerNoSee = true;
 	GetMesh()->bReceivesDecals = false;
 	GetMesh()->SetCollisionObjectType(ECC_Pawn);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-	
-	// Initialize FP Root
+
 	FPRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("FP_Root"));
 	FPRootSceneComponent->SetupAttachment(RootComponent);
 
@@ -44,7 +40,6 @@ AShooterCharacter::AShooterCharacter()
 	OffsetRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Offset_Root"));
 	OffsetRootSceneComponent->SetupAttachment(FPMeshRootSpringArmComponent);
 
-	// Initialize First Person Mesh
 	FPMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
 	FPMesh->SetupAttachment(OffsetRootSceneComponent);
 	FPMesh->SetRelativeLocation(FVector(0, 0, -96));
@@ -74,8 +69,7 @@ AShooterCharacter::AShooterCharacter()
 	GetCharacterMovement()->AirControlBoostMultiplier = 4.0f;
 
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
-	
-	// Initialize Variables
+
 	WeaponSocketName = TEXT("WeaponPoint");
 }
 
@@ -90,21 +84,23 @@ void AShooterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 		EnhancedInputComponent->BindAction(LookInputAction, ETriggerEvent::Triggered, this,
 		                                   &AShooterCharacter::HandleLookInput);
 		EnhancedInputComponent->BindAction(JumpInputAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
-
 		EnhancedInputComponent->BindAction(FireInputAction, ETriggerEvent::Started, this,
 		                                   &AShooterCharacter::HandleBeginFireInput);
 		EnhancedInputComponent->BindAction(FireInputAction, ETriggerEvent::Completed, this,
 		                                   &AShooterCharacter::HandleEndFireInput);
-
 		EnhancedInputComponent->BindAction(ReloadInputAction, ETriggerEvent::Started, this,
-								   &AShooterCharacter::HandleWeaponReloadInput);
+		                                   &AShooterCharacter::HandleWeaponReloadInput);
+
+		EnhancedInputComponent->BindAction(NextWeaponInputAction, ETriggerEvent::Started, this,
+		                                   &AShooterCharacter::HandleNextWeaponInput);
+		EnhancedInputComponent->BindAction(PreviousWeaponInputAction, ETriggerEvent::Started, this,
+		                                   &AShooterCharacter::HandlePreviousWeaponInput);
 	}
 }
 
 void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
 	DOREPLIFETIME(AShooterCharacter, WeaponActor);
 	DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
 	DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
@@ -114,31 +110,30 @@ void AShooterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SpawnWeapon();
+	// Bind On Weapon Equipped Delegate & Equip first weapon
+	if (InventoryComponent)
+	{
+		InventoryComponent->OnWeaponEquippedDelegate.AddDynamic(this, &AShooterCharacter::OnWeaponEquipped);
+		InventoryComponent->EquipWeaponByIndex(0);
+	}
 }
 
 void AShooterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Server: Update AimOffsets - ThirdPerson Aiming
 	if (HasAuthority())
 	{
 		FRotator AimOffsets = GetBaseAimRotation();
 		AimOffsets.Normalize();
-		
 		AimOffsetPitch = FMath::Clamp(AimOffsets.Pitch, -90.0f, 90.0f);
-		AimOffsetYaw   = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
+		AimOffsetYaw = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
 	}
 }
 
 void AShooterCharacter::HandleMoveInput(const FInputActionValue& Value)
 {
-	if (!Controller)
-	{
-		return;
-	}
-
+	if (!Controller) return;
 	const FVector2D MoveInputValue = Value.Get<FVector2D>();
 	if (!MoveInputValue.IsNearlyZero())
 	{
@@ -149,42 +144,75 @@ void AShooterCharacter::HandleMoveInput(const FInputActionValue& Value)
 
 void AShooterCharacter::HandleLookInput(const FInputActionValue& Value)
 {
-	if (!Controller)
-	{
-		return;
-	}
-
-	FVector2D LookInputValue = Value.Get<FVector2D>();
-	LookInputValue = LookInputValue * LookSensitivity;
+	if (!Controller) return;
+	FVector2D LookInputValue = Value.Get<FVector2D>() * LookSensitivity;
 	if (!LookInputValue.IsNearlyZero())
 	{
 		AddControllerYawInput(LookInputValue.X);
 		AddControllerPitchInput(LookInputValue.Y);
-
 		OnLookInputChanged.Broadcast(LookInputValue);
 	}
 }
 
-void AShooterCharacter::HandleBeginFireInput(const FInputActionValue& Value)
+void AShooterCharacter::HandleBeginFireInput(const FInputActionValue& Value) { BeginFire(); }
+
+void AShooterCharacter::HandleEndFireInput(const FInputActionValue& Value) { EndFire(); }
+
+void AShooterCharacter::HandleWeaponReloadInput(const FInputActionValue& Value) { ReloadWeapon(); }
+
+void AShooterCharacter::HandleNextWeaponInput(const FInputActionValue& Value)
 {
-	BeginFire();
+	if (IsValid(InventoryComponent))
+	{
+		InventoryComponent->EquipNextWeapon();
+	}
 }
 
-void AShooterCharacter::HandleEndFireInput(const FInputActionValue& Value)
+void AShooterCharacter::HandlePreviousWeaponInput(const FInputActionValue& Value)
 {
-	EndFire();
+	if (IsValid(InventoryComponent))
+	{
+		InventoryComponent->EquipPreviousWeapon();
+	}
 }
 
-void AShooterCharacter::HandleWeaponReloadInput(const FInputActionValue& Value)
+void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 {
-	ReloadWeapon();
+	if (!IsValid(InventoryComponent) || !InventoryComponent->GetEquippedWeapon())
+	{
+		return;
+	}
+
+	WeaponActor = InventoryComponent->GetEquippedWeapon();
+	
+	bCanInteractWithWeapon = false;
+
+	// Attach meshes
+	AttachWeaponToMesh();
+
+	// Play equip animation
+	PlayEquipMontage(false);
+
+	GetWorld()->GetTimerManager().SetTimer(EquipTimerHandle, [this]()
+	{
+		bCanInteractWithWeapon = true;
+	}, EquipCooldownDuration, false);
 }
 
 void AShooterCharacter::BeginFire()
 {
-	if (WeaponActor)
+	if (!IsValid(InventoryComponent) || !IsValid(WeaponActor))
+	{
+		return;
+	}
+
+	if (bCanInteractWithWeapon)
 	{
 		WeaponActor->BeginFire();
+	}
+	else
+	{
+		WeaponActor->EndFire();
 	}
 }
 
@@ -198,13 +226,23 @@ void AShooterCharacter::EndFire()
 
 void AShooterCharacter::ReloadWeapon()
 {
-	if (WeaponActor && InventoryComponent->GetAmmo(WeaponActor->GetAmmoData().AmmoTypeTag))
+	if (!IsValid(InventoryComponent))
+	{
+		return;
+	}
+
+	if (!bCanInteractWithWeapon || !WeaponActor)
+	{
+		return;
+	}
+	
+	if (InventoryComponent->GetAmmo(WeaponActor->GetAmmoData().AmmoTypeTag))
 	{
 		WeaponActor->BeginReload();
 	}
 }
 
-int32 AShooterCharacter::RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmount)
+int32 AShooterCharacter::RequestAmmo_Implementation(FGameplayTag AmmoType, int32 RequestedAmount)
 {
 	if (!InventoryComponent)
 	{
@@ -223,37 +261,6 @@ int32 AShooterCharacter::RequestAmmo(FGameplayTag AmmoType, int32 RequestedAmoun
 	return Provided;
 }
 
-void AShooterCharacter::SpawnWeapon()
-{
-	if (!IsValid(WeaponClass))
-	{
-		LOG_ERROR(TEXT("Spawn failed, WeaponClass is invalid!"));
-		return;
-	}
-	
-	if (!HasAuthority())
-	{
-		return;
-	}
-
-	// Initialize Spawn Parameters for Spawning Weapon
-	FActorSpawnParameters SpawnParameters;
-	SpawnParameters.Owner = this;
-	SpawnParameters.Instigator = this;
-	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	// Spawn Weapon Actor
-	WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, SpawnParameters);
-	if (!IsValid(WeaponActor))
-	{
-		LOG_ERROR(TEXT("Spawn failed, WeaponActor is invalid!"));
-		return;
-	}
-
-	// Attach Weapon to Character SkeletalMesh
-	OnRep_WeaponActor();
-}
-
 void AShooterCharacter::AttachWeaponToMesh()
 {
 	if (!WeaponActor)
@@ -261,15 +268,28 @@ void AShooterCharacter::AttachWeaponToMesh()
 		return;
 	}
 
-	// Attach and apply offset for FP weapon mesh
+	// Attach FP Weapon + Apply Offset
 	WeaponActor->GetFPWeaponMeshComponent()->AttachToComponent(
 		FPMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, WeaponSocketName);
 	WeaponActor->GetFPWeaponMeshComponent()->SetRelativeLocation(WeaponActor->GetWeaponOffset());
 
-	// Attach and apply offset for TP weapon mesh
+	// Attach TP Weapon + Apply Offset
 	WeaponActor->GetTPWeaponMeshComponent()->AttachToComponent(
 		GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, WeaponSocketName);
 	WeaponActor->GetTPWeaponMeshComponent()->SetRelativeLocation(WeaponActor->GetWeaponOffset());
+}
+
+void AShooterCharacter::PlayEquipMontage(const bool bReverse)
+{
+	if (!EquipMontage) return;
+
+	const float PlayRate = bReverse ? -1.0f : 1.0f;
+	const float StartAt = bReverse ? EquipMontage->GetPlayLength() : 0.0f;
+
+	if (UAnimInstance* AnimInstance = FPMesh->GetAnimInstance())
+	{
+		AnimInstance->Montage_Play(EquipMontage, PlayRate, EMontagePlayReturnType::MontageLength, StartAt, true);
+	}
 }
 
 void AShooterCharacter::OnRep_WeaponActor()
