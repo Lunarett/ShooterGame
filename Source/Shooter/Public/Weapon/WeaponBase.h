@@ -12,6 +12,7 @@ class UAnimMontage;
 class USoundCue;
 class UNiagaraSystem;
 class USceneComponent;
+class UWeaponRecoilComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponFired);
 
@@ -116,6 +117,9 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = true))
 	USkeletalMeshComponent* TPWeaponMeshComponent;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = true))
+	UWeaponRecoilComponent* RecoilComponent;
 	
 private:
 	UPROPERTY(Transient)

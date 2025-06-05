@@ -3,19 +3,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AIController.h"
 #include "GameFramework/Character.h"
 #include "Weapon/AmmoProvider.h"
 #include "ShooterCharacter.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLookInputChanged, FVector2D, MouseDelta);
+UENUM(BlueprintType)
+enum class EPlayerViewMode : uint8
+{
+	FirstPerson		UMETA(DisplayName = "First Person"),
+	ThirdPerson		UMETA(DisplayName = "Third Person")
+};
 
 class USkeletalMeshComponent;
 class USpringArmComponent;
 class USceneComponent;
 class UCameraComponent;
-class UInputAction;
 class AWeaponBase;
-struct FInputActionValue;
 class UInventoryComponent;
 class UAnimMontage;
 
@@ -26,9 +30,6 @@ class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
 
 public:
 	AShooterCharacter();
-
-	UPROPERTY(BlueprintAssignable)
-	FOnLookInputChanged OnLookInputChanged;
 
 protected:
 	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
@@ -44,7 +45,7 @@ protected:
 	USkeletalMeshComponent* FPMesh;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
-	USpringArmComponent* CameraRootSpringArmComponent;
+	USpringArmComponent* FPCameraRootSpringArmComponent;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	USkeletalMeshComponent* CameraSkeletalMesh;
@@ -52,13 +53,13 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	UCameraComponent* CameraComponent;
 
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	USpringArmComponent* TPSpringArmComponent;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	UInventoryComponent* InventoryComponent;
 
 protected:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
-	float LookSensitivity = 0.5f;
-
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
 	FName WeaponSocketName;
 	
@@ -67,31 +68,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Animations")
 	UAnimMontage* EquipMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
+	EPlayerViewMode ViewMode;
 	
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* MoveInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* LookInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* SprintInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* ReloadInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* NextWeaponInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* PreviousWeaponInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* JumpInputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* FireInputAction;
 
 private:
 	UPROPERTY(Replicated)
@@ -105,21 +85,11 @@ private:
 	FTimerHandle EquipTimerHandle;
 
 public:
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
-
-private:
-	void HandleMoveInput(const FInputActionValue& Value);
-	void HandleLookInput(const FInputActionValue& Value);
-	void HandleBeginFireInput(const FInputActionValue& Value);
-	void HandleEndFireInput(const FInputActionValue& Value);
-	void HandleWeaponReloadInput(const FInputActionValue& Value);
-	void HandleNextWeaponInput(const FInputActionValue& Value);
-	void HandlePreviousWeaponInput(const FInputActionValue& Value);
 
 private:
 	UFUNCTION()
@@ -137,6 +107,8 @@ public:
 
 	virtual int32 RequestAmmo_Implementation(FGameplayTag AmmoType, int32 RequestedAmount) override;
 
+	void SetPlayerViewMode(EPlayerViewMode NewViewMode);
+
 private:
 	void AttachWeaponToMesh();
 	void PlayEquipMontage(bool bReverse);
@@ -145,12 +117,16 @@ private:
 	void OnRep_WeaponActor();
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Shooter Character")
-	bool IsPawnAIControlled() const;
-
 	UFUNCTION(BlueprintCallable, Category = "AimOffset")
-	void GetAimOffsetValues(float& OutYaw, float& OutPitch) const;
+	FORCEINLINE void GetAimOffsetValues(float& OutYaw, float& OutPitch) const
+	{
+		OutYaw = AimOffsetYaw;
+		OutPitch = AimOffsetPitch;
+	}
 
+	FORCEINLINE bool IsPawnAIControlled() const { return Controller && Controller->IsA<AAIController>(); }
 	FORCEINLINE USkeletalMeshComponent* GetFPMeshComponent() const { return FPMesh; }
 	FORCEINLINE USkeletalMeshComponent* GetTPMeshComponent() const { return GetMesh(); }
+	FORCEINLINE UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+	FORCEINLINE EPlayerViewMode GetViewMode() const { return ViewMode; }
 };

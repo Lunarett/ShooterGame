@@ -6,6 +6,7 @@
 #include "Player/ShooterCharacter.h"
 #include "Weapon/AmmoProvider.h"
 #include "Weapon/WeaponFireModeBase.h"
+#include "Weapon/WeaponRecoilComponent.h"
 
 AWeaponBase::AWeaponBase()
 {
@@ -42,6 +43,9 @@ AWeaponBase::AWeaponBase()
 	TPWeaponMeshComponent->SetOwnerNoSee(true);
 	TPWeaponMeshComponent->SetupAttachment(WeaponSceneRootComponent);
 
+	// Initialize Weapon Recoil Component
+	RecoilComponent = CreateDefaultSubobject<UWeaponRecoilComponent>(TEXT("Weapon Recoil Component"));
+
 	// Initialize Variables
 	FireRate = 0.1f;
 	ReloadDuration = 1.0f;
@@ -65,6 +69,7 @@ void AWeaponBase::BeginPlay()
 		if (!OwnerShooterCharacter)
 		{
 			LOG_ERROR_SCREEN("Failed to cast Owner to ShooterCharacter");
+			return;
 		}
 	}
 
@@ -143,6 +148,12 @@ void AWeaponBase::HandleWeaponFire()
 	// Spawn Weapon Fire Muzzle Effect
 	MulticastPlayMuzzleEffect();
 
+	// Play Recoil
+	if (RecoilComponent)
+	{
+		RecoilComponent->AddRecoil();
+	}
+	
 	// Execute actual Fire Logic
 	FireWeapon();
 
@@ -272,11 +283,11 @@ void AWeaponBase::PlayAnimationMontage(FWeaponAnimationData AnimationData)
 		return;
 	}
 
-	// Determine whether this character is locally controlled
-	const bool bIsLocallyControlled = OwnerShooterCharacter->IsLocallyControlled();
+	// Get Player's View Mode
+	EPlayerViewMode ViewMode = OwnerShooterCharacter->GetViewMode();
 
 	// Play First-Person Animation if locally controlled
-	if (bIsLocallyControlled && AnimationData.FPAnimationMontage)
+	if (ViewMode == EPlayerViewMode::FirstPerson && AnimationData.FPAnimationMontage)
 	{
 		const USkeletalMeshComponent* FPMesh = OwnerShooterCharacter->GetFPMeshComponent();
 		if (FPMesh && FPMesh->GetAnimInstance())
@@ -289,8 +300,8 @@ void AWeaponBase::PlayAnimationMontage(FWeaponAnimationData AnimationData)
 		}
 	}
 
-	// Play Third-Person Animation for non-local players or on remote clients
-	if (!bIsLocallyControlled && AnimationData.TPAnimationMontage)
+	// Play Third-Person Animation
+	if (ViewMode == EPlayerViewMode::ThirdPerson && AnimationData.TPAnimationMontage)
 	{
 		const USkeletalMeshComponent* TPMesh = OwnerShooterCharacter->GetTPMeshComponent();
 		if (TPMesh && TPMesh->GetAnimInstance())
