@@ -8,6 +8,8 @@
 #include "Weapon/AmmoProvider.h"
 #include "ShooterCharacter.generated.h"
 
+class UParkourMovementComponent;
+
 UENUM(BlueprintType)
 enum class EPlayerViewMode : uint8
 {
@@ -22,6 +24,7 @@ class UCameraComponent;
 class AWeaponBase;
 class UInventoryComponent;
 class UAnimMontage;
+class UHealthComponent;
 
 UCLASS()
 class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
@@ -35,29 +38,35 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
 	USceneComponent* FPRootSceneComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USpringArmComponent* FPMeshRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USceneComponent* OffsetRootSceneComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USkeletalMeshComponent* FPMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USpringArmComponent* FPCameraRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USkeletalMeshComponent* CameraSkeletalMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	UCameraComponent* CameraComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
 	USpringArmComponent* TPSpringArmComponent;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|FP Components")
+	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
+	UHealthComponent* HealthComponent;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
 	UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
+	UParkourMovementComponent* ParkourMovementComponent;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
@@ -91,6 +100,12 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
+public:
+	//virtual void Jump() override;
+
+protected:
+	//virtual void Landed(const FHitResult& Hit) override;
+	
 private:
 	UFUNCTION()
 	void OnWeaponEquipped(float EquipCooldownDuration);

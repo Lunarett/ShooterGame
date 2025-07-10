@@ -209,5 +209,6 @@ void UInventoryComponent::SetWeaponRenderFocus(const AWeaponBase* NewWeaponFocus
 		Weapon->SetActorHiddenInGame(!bIsFocused);
 		Weapon->SetActorEnableCollision(bIsFocused);
 		Weapon->SetActorTickEnabled(bIsFocused);
+		Weapon->EndFire();
 	}
 }

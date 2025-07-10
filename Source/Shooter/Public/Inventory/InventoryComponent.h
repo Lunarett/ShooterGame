@@ -117,4 +117,6 @@ public:
 	{
 		return EquippedWeapon;
 	}
+
+	FORCEINLINE bool GetIsEquipActive() const { return bIsEquipActive; }
 };

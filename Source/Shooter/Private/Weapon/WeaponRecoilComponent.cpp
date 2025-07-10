@@ -8,6 +8,7 @@
 UWeaponRecoilComponent::UWeaponRecoilComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	SetTickGroup(TG_PrePhysics);
 
 	bEnableRecoil = true;
 	MinRecoilVerticalStrength = 1.0f;
@@ -41,13 +42,13 @@ void UWeaponRecoilComponent::BeginPlay()
 	if (AddRecoilCurve)
 	{
 		const float LastKeyTime = AddRecoilCurve->FloatCurve.GetLastKey().Time;
-
+	
 		FOnTimelineFloat OnUpdate;
 		OnUpdate.BindUFunction(this, FName("OnTimelineAddRecoilUpdate"));
-
+	
 		FOnTimelineEvent OnFinished;
 		OnFinished.BindUFunction(this, FName("OnTimelineAddRecoilComplete"));
-
+	
 		AddRecoilTimeline.AddInterpFloat(AddRecoilCurve, OnUpdate);
 		AddRecoilTimeline.SetTimelineLengthMode(ETimelineLengthMode::TL_TimelineLength);
 		AddRecoilTimeline.SetTimelineLength(LastKeyTime);
@@ -55,15 +56,15 @@ void UWeaponRecoilComponent::BeginPlay()
 		AddRecoilTimeline.SetLooping(false);
 		AddRecoilTimeline.SetPlayRate(1.0f);
 	}
-
+	
 	// Initialize ResetRecoilTimeline
 	if (ResetRecoilCurve)
 	{
 		const float LastKeyTime = ResetRecoilCurve->FloatCurve.GetLastKey().Time;
-
+	
 		FOnTimelineFloat OnUpdate;
 		OnUpdate.BindUFunction(this, FName("OnTimelineResetRecoilUpdate"));
-
+	
 		ResetRecoilTimeline.AddInterpFloat(ResetRecoilCurve, OnUpdate);
 		ResetRecoilTimeline.SetTimelineLengthMode(ETimelineLengthMode::TL_TimelineLength);
 		ResetRecoilTimeline.SetTimelineLength(LastKeyTime);
@@ -89,7 +90,7 @@ void UWeaponRecoilComponent::AddRecoil()
 		LOG_WARN_SCREEN("Recoil Isnt enabled");
 		return;
 	}
-
+	
 	GetRecoilYawAndPitch(CurrentYaw, CurrentPitch);
 
 	// Stop all timelines
@@ -101,12 +102,13 @@ void UWeaponRecoilComponent::AddRecoil()
 	TempAddedPitch = 0.0f;
 
 	AddRecoilTimeline.SetPlayRate(RecoilSpeed * 5.0f);
+	AddRecoilTimeline.SetNewTime(0.0f);
 	AddRecoilTimeline.PlayFromStart();
 }
 
 void UWeaponRecoilComponent::ResetRecoil()
 {
-	if (!bResetRecoil && AddRecoilTimeline.IsPlaying())
+	if (!bResetRecoil || AddRecoilTimeline.IsPlaying())
 	{
 		return;
 	}
@@ -116,9 +118,12 @@ void UWeaponRecoilComponent::ResetRecoil()
 	TempRecoilPosition = CurrentRecoilPosition;
 	TempAddedYaw = 0.0f;
 	TempAddedPitch = 0.0f;
+	ResetEasedYawTotal = 0.0f;
+	ResetEasedPitchTotal = 0.0f;
 	TempAddedPitchAndYaw = AddedPitchAndYaw;
 
 	ResetRecoilTimeline.SetPlayRate(RecoilResetSpeed * 5.0f);
+	ResetRecoilTimeline.SetNewTime(0.0f);
 	ResetRecoilTimeline.PlayFromStart();
 }
 
@@ -231,19 +236,26 @@ void UWeaponRecoilComponent::OnTimelineAddRecoilComplete()
 
 void UWeaponRecoilComponent::OnTimelineResetRecoilUpdate(const float InAlpha)
 {
-	const double EasedYaw = (UKismetMathLibrary::Ease(0.0f, AddedPitchAndYaw.X, InAlpha, RecoilResetInterpolation,
-	                                                  RecoilResetInterpolationEaseExp,
-	                                                  RecoilResetInterpolationSteps) - TempAddedYaw) * -1.0f;
+	const float EasedYawAbsolute = UKismetMathLibrary::Ease(
+		0.0f, TempAddedPitchAndYaw.X, InAlpha,
+		RecoilResetInterpolation, RecoilResetInterpolationEaseExp, RecoilResetInterpolationSteps);
 
-	const double EasedPitch = (UKismetMathLibrary::Ease(0.0f, AddedPitchAndYaw.Y, InAlpha, RecoilResetInterpolation,
-	                                                    RecoilResetInterpolationEaseExp,
-	                                                    RecoilResetInterpolationSteps) - TempAddedPitch) * -1.0f;
+	const float EasedPitchAbsolute = UKismetMathLibrary::Ease(
+		0.0f, TempAddedPitchAndYaw.Y, InAlpha,
+		RecoilResetInterpolation, RecoilResetInterpolationEaseExp, RecoilResetInterpolationSteps);
 
+	const float DeltaYaw = EasedYawAbsolute - ResetEasedYawTotal;
+	const float DeltaPitch = EasedPitchAbsolute - ResetEasedPitchTotal;
 
-	UpdatePlayerYawAndPitch(EasedYaw, EasedPitch);
-	AddedPitchAndYaw += FVector2D(EasedYaw, EasedPitch);
-	TempAddedPitch = EasedPitch;
-	TempAddedYaw = EasedYaw;
+	UpdatePlayerYawAndPitch(-DeltaYaw, -DeltaPitch);
 
-	CurrentRecoilPosition = FMath::TruncToInt(FMath::Lerp(TempRecoilPosition, 0.0f, InAlpha));
+	AddedPitchAndYaw += FVector2D(-DeltaYaw, -DeltaPitch);
+
+	ResetEasedYawTotal = EasedYawAbsolute;
+	ResetEasedPitchTotal = EasedPitchAbsolute;
+
+	TempAddedYaw = EasedYawAbsolute;
+	TempAddedPitch = EasedPitchAbsolute;
+
+	CurrentRecoilPosition = FMath::TruncToInt(FMath::Lerp(static_cast<float>(TempRecoilPosition), 0.0f, InAlpha));
 }

@@ -1,4 +1,6 @@
 #include "Weapon/WeaponBase.h"
+
+#include "EnhancedInputComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Debug/LoggerMacros.h"
 #include "Kismet/GameplayStatics.h"
@@ -28,7 +30,7 @@ AWeaponBase::AWeaponBase()
 	FPWeaponMeshComponent->SetCollisionObjectType(ECC_WorldDynamic);
 	FPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FPWeaponMeshComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
-	FPWeaponMeshComponent->SetOnlyOwnerSee(true);
+	//FPWeaponMeshComponent->SetOnlyOwnerSee(true);
 	FPWeaponMeshComponent->SetupAttachment(WeaponSceneRootComponent);
 
 	// Initialize Third Person Weapon Mesh
@@ -40,7 +42,7 @@ AWeaponBase::AWeaponBase()
 	TPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	TPWeaponMeshComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
 	TPWeaponMeshComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
-	TPWeaponMeshComponent->SetOwnerNoSee(true);
+	//TPWeaponMeshComponent->SetOwnerNoSee(true);
 	TPWeaponMeshComponent->SetupAttachment(WeaponSceneRootComponent);
 
 	// Initialize Weapon Recoil Component
@@ -55,7 +57,7 @@ AWeaponBase::AWeaponBase()
 void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	
+
 	DOREPLIFETIME(AWeaponBase, OwnerShooterCharacter);
 }
 
@@ -88,6 +90,37 @@ void AWeaponBase::Destroyed()
 	Super::Destroyed();
 }
 
+void AWeaponBase::OnLookInput(const FInputActionValue& Value)
+{
+	if (RecoilComponent)
+	{
+		const FVector2D MouseDelta = Value.Get<FVector2D>();
+
+		// Add mouse delta for recoil to reset to the correct position
+		RecoilComponent->OnYawAdded(MouseDelta.X);
+		RecoilComponent->OnPitchAdded(MouseDelta.Y);
+	}
+}
+
+void AWeaponBase::SetViewMode(EPlayerViewMode ViewMode)
+{
+	switch (ViewMode)
+	{
+	case EPlayerViewMode::FirstPerson:
+		FPWeaponMeshComponent->SetVisibility(true);
+		FPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		TPWeaponMeshComponent->SetVisibility(false);
+		TPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+	case EPlayerViewMode::ThirdPerson:
+		TPWeaponMeshComponent->SetVisibility(true);
+		TPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		FPWeaponMeshComponent->SetVisibility(false);
+		FPWeaponMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+	}
+}
+
 
 // Weapon Fire
 void AWeaponBase::BeginFire()
@@ -108,6 +141,28 @@ void AWeaponBase::BeginFire()
 	{
 		LOG_ERROR_SCREEN("Fire mode is invalid")
 	}
+
+	// Enable input and bind LookInputAction
+	if (APlayerController* PC = Cast<APlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		EnableInput(PC);
+
+		if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(InputComponent))
+		{
+			if (LookInputAction)
+			{
+				EnhancedInput->BindAction(LookInputAction, ETriggerEvent::Triggered, this, &AWeaponBase::OnLookInput);
+			}
+			else
+			{
+				LOG_WARN_SCREEN("LookInputAction is not assigned.");
+			}
+		}
+		else
+		{
+			LOG_ERROR_SCREEN("InputComponent is not an EnhancedInputComponent.");
+		}
+	}
 }
 
 void AWeaponBase::EndFire()
@@ -117,7 +172,7 @@ void AWeaponBase::EndFire()
 		ServerEndFire();
 		return;
 	}
-	
+
 	if (FireModeBehavior && GetWorld())
 	{
 		FireModeBehavior->StopFire(GetWorld(), FireTimerHandle);
@@ -130,13 +185,14 @@ void AWeaponBase::HandleWeaponFire()
 	{
 		return;
 	}
-	
+
 	--CurrentClipAmmo;
 
 	// Play Weapon Fire Camera Shake
 	if (FireCameraShake)
 	{
-		if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0); IsValid(CameraManager))
+		if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0); IsValid(
+			CameraManager))
 		{
 			CameraManager->StartCameraShake(FireCameraShake);
 		}
@@ -149,11 +205,11 @@ void AWeaponBase::HandleWeaponFire()
 	MulticastPlayMuzzleEffect();
 
 	// Play Recoil
-	if (RecoilComponent)
+	if (RecoilComponent && !OwnerShooterCharacter->IsPawnAIControlled())
 	{
 		RecoilComponent->AddRecoil();
 	}
-	
+
 	// Execute actual Fire Logic
 	FireWeapon();
 
@@ -204,7 +260,7 @@ void AWeaponBase::BeginReload()
 	bIsReloadingWeapon = true;
 
 	MulticastPlayWeaponReloadAnimation();
-	
+
 	GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &AWeaponBase::EndReload, ReloadDuration, false);
 }
 
@@ -218,7 +274,8 @@ void AWeaponBase::EndReload()
 	if (OwnerShooterCharacter && OwnerShooterCharacter->GetClass()->ImplementsInterface(UAmmoProvider::StaticClass()))
 	{
 		const int32 AmmoNeeded = AmmoData.ClipSize - CurrentClipAmmo;
-		const int32 AmmoReceived = IAmmoProvider::Execute_RequestAmmo(OwnerShooterCharacter, AmmoData.AmmoTypeTag, AmmoNeeded);
+		const int32 AmmoReceived = IAmmoProvider::Execute_RequestAmmo(OwnerShooterCharacter, AmmoData.AmmoTypeTag,
+		                                                              AmmoNeeded);
 		CurrentClipAmmo += AmmoReceived;
 	}
 
@@ -247,8 +304,8 @@ void AWeaponBase::PlayMuzzleEffect()
 
 	// Get the appropriate weapon mesh
 	USkeletalMeshComponent* WeaponMesh = (OwnerShooterCharacter && OwnerShooterCharacter->IsLocallyControlled())
-		? FPWeaponMeshComponent
-		: TPWeaponMeshComponent;
+		                                     ? FPWeaponMeshComponent
+		                                     : TPWeaponMeshComponent;
 
 	if (!WeaponMesh)
 	{
@@ -258,13 +315,13 @@ void AWeaponBase::PlayMuzzleEffect()
 
 	// Spawn the Niagara system attached to the weapon mesh
 	UNiagaraComponent* NiagaraComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
-		MuzzleFlashEffect,                  // The Niagara System to spawn
-		WeaponMesh,                         // Attach to the weapon mesh
-		WeaponMuzzleSocketName,             // Attach to this socket name
-		FVector::ZeroVector,                // Location offset (relative to socket)
-		FRotator::ZeroRotator,              // Rotation offset (relative to socket)
-		EAttachLocation::SnapToTarget,      // Snap to the socket's transform
-		true                                // Auto-destroy when effect finishes
+		MuzzleFlashEffect, // The Niagara System to spawn
+		WeaponMesh, // Attach to the weapon mesh
+		WeaponMuzzleSocketName, // Attach to this socket name
+		FVector::ZeroVector, // Location offset (relative to socket)
+		FRotator::ZeroRotator, // Rotation offset (relative to socket)
+		EAttachLocation::SnapToTarget, // Snap to the socket's transform
+		true // Auto-destroy when effect finishes
 	);
 }
 

@@ -60,6 +60,7 @@ private:
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnPossess(APawn* PossessedPawn) override;
 
 private:
 	/* Handle Player Input */
@@ -72,6 +73,9 @@ private:
 	void HandleNextWeaponInput(const FInputActionValue& Value);
 	void HandlePreviousWeaponInput(const FInputActionValue& Value);
 	void HandleToggleViewModeInput(const FInputActionValue& Value);
+
+	UFUNCTION()
+	void HandlePawnDeath(AController* InstigatedBy, AActor* DamageCauser);
 
 public:
 	FORCEINLINE AShooterCharacter* GetShooterCharacter() const { return ShooterCharacter; }

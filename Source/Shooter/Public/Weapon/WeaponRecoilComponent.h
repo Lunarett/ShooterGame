@@ -112,6 +112,12 @@ private:
 
 	FTimerHandle RecoilResetTimerHandle;
 
+	float ResetEasedYawTotal = 0.0f;
+	float ResetEasedPitchTotal = 0.0f;
+
+	float AddEasedYawTotal = 0.0f;
+	float AddEasedPitchTotal = 0.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -130,7 +136,6 @@ public:
 private:
 	void GetRecoilYawAndPitch(float& OutYaw, float& OutPitch);
 	void UpdatePlayerYawAndPitch(const float InYaw, const float InPitch);
-
 	
 	UFUNCTION()
 	void OnTimelineAddRecoilUpdate(const float InAlpha);

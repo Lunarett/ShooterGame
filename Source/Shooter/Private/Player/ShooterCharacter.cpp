@@ -6,8 +6,10 @@
 #include "Debug/LoggerMacros.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Health/HealthComponent.h"
 #include "Inventory/InventoryComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Player/ParkourMovementComponent.h"
 #include "Weapon/WeaponBase.h"
 
 AShooterCharacter::AShooterCharacter()
@@ -64,8 +66,11 @@ AShooterCharacter::AShooterCharacter()
 	TPSpringArmComponent->SetupAttachment(GetMesh());
 	TPSpringArmComponent->bUsePawnControlRotation = true;
 	TPSpringArmComponent->bInheritYaw = true;
-	TPSpringArmComponent->TargetArmLength = 400.0f;
+	TPSpringArmComponent->TargetArmLength = 300.0f;
+	TPSpringArmComponent->SocketOffset = FVector(0, 50, 50);
 	TPSpringArmComponent->SetRelativeLocation(FVector(0, 0, 96));
+
+	ParkourMovementComponent = CreateDefaultSubobject<UParkourMovementComponent>(TEXT("Parkour Movement"));
 
 	GetCharacterMovement()->MaxWalkSpeed = 1200.0f;
 	GetCharacterMovement()->GravityScale = 2.0f;
@@ -73,6 +78,8 @@ AShooterCharacter::AShooterCharacter()
 	GetCharacterMovement()->AirControl = 2.0f;
 	GetCharacterMovement()->AirControlBoostMultiplier = 4.0f;
 
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
+	
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 
 	WeaponSocketName = TEXT("WeaponPoint");
@@ -90,14 +97,14 @@ void AShooterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SetPlayerViewMode(ViewMode);
-
 	// Bind On Weapon Equipped Delegate & Equip first weapon
 	if (InventoryComponent)
 	{
 		InventoryComponent->OnWeaponEquippedDelegate.AddDynamic(this, &AShooterCharacter::OnWeaponEquipped);
 		InventoryComponent->EquipWeaponByIndex(0);
 	}
+
+	SetPlayerViewMode(ViewMode);
 }
 
 void AShooterCharacter::Tick(float DeltaTime)
@@ -113,6 +120,18 @@ void AShooterCharacter::Tick(float DeltaTime)
 		AimOffsetYaw = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
 	}
 }
+
+// void AShooterCharacter::Jump()
+// {
+// 	Super::Jump();
+// 	//ParkourMovementComponent->WallRunJump();
+// }
+//
+// void AShooterCharacter::Landed(const FHitResult& Hit)
+// {
+// 	Super::Landed(Hit);
+// 	//ParkourMovementComponent->WallRunLand();
+// }
 
 void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 {
@@ -137,6 +156,8 @@ void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 	{
 		bCanInteractWithWeapon = true;
 	}, EquipCooldownDuration, false);
+
+	SetPlayerViewMode(ViewMode);
 }
 
 void AShooterCharacter::BeginFire()
@@ -208,8 +229,9 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 		LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
 		return;
 	}
-	
-	ViewMode = NewViewMode;
+
+	// If we are controlled by AI always use Third-Person perspective
+	ViewMode = IsPawnAIControlled() ? EPlayerViewMode::ThirdPerson : NewViewMode;
 
 	switch (ViewMode)
 	{
@@ -239,6 +261,11 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 		bUseControllerRotationYaw = true;
 		bUseControllerRotationRoll = false;
 		break;
+	}
+
+	if (WeaponActor)
+	{
+		WeaponActor->SetViewMode(NewViewMode);
 	}
 }
 

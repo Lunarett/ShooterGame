@@ -1,19 +1,18 @@
-// HealthComponent.cpp
 #include "Health/HealthComponent.h"
 #include "GameFramework/Actor.h"
 #include "Pickup/PickupActor.h"
 
 UHealthComponent::UHealthComponent()
 {
-	DefaultHealth = 100.f;
-	CurrentHealth = DefaultHealth;
+	MaxHealth = 100.f;
+	CurrentHealth = MaxHealth;
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	CurrentHealth = DefaultHealth;
+	CurrentHealth = MaxHealth;
 
 	if (AActor* MyOwner = GetOwner())
 	{
@@ -21,24 +20,25 @@ void UHealthComponent::BeginPlay()
 	}
 }
 
-void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser)
+void UHealthComponent::HandleTakeAnyDamage(AActor* DamagedActor, const float Damage, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser)
 {
 	if (Damage <= 0.f)
 	{
 		return;
 	}
 
-	CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, DefaultHealth);
-	OnHealthChanged.Broadcast(this, CurrentHealth, Damage, InstigatedBy);
+	CurrentHealth = FMath::Clamp(CurrentHealth - Damage, 0.f, MaxHealth);
+	OnHealthChanged.Broadcast(CurrentHealth, InstigatedBy, DamageCauser);
 
-	if (CurrentHealth <= 0.f)
+	if (CurrentHealth <= 0.0f)
 	{
+		OnDeath.Broadcast(InstigatedBy, DamageCauser);
 	}
 }
 
-void UHealthComponent::Heal(float Amount)
+void UHealthComponent::Heal(const float Amount)
 {
-	CurrentHealth = FMath::Clamp(CurrentHealth - Amount, 0.f, DefaultHealth);
+	CurrentHealth = FMath::Clamp(CurrentHealth - Amount, 0.f, MaxHealth);
 }
 
 void UHealthComponent::HandlePickup_Implementation(const FPickupData& PickupData)

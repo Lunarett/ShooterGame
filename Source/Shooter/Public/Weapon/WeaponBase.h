@@ -3,8 +3,10 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "GameFramework/Actor.h"
+#include "Player/ShooterCharacter.h"
 #include "WeaponBase.generated.h"
 
+struct FInputActionValue;
 class AShooterCharacter;
 class UWeaponFireModeBase;
 class USkeletalMeshComponent;
@@ -13,6 +15,7 @@ class USoundCue;
 class UNiagaraSystem;
 class USceneComponent;
 class UWeaponRecoilComponent;
+class UInputAction;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWeaponFired);
 
@@ -107,6 +110,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Effects")
 	TSubclassOf<UCameraShakeBase> FireCameraShake;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Effects")
+	UInputAction* LookInputAction;
 	
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Components", meta = (AllowPrivateAccess = true))
@@ -146,8 +153,13 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Destroyed() override;
 
+private:
+	UFUNCTION()
+	void OnLookInput(const FInputActionValue& Value);
 	
-
+public:
+	void SetViewMode(EPlayerViewMode ViewMode);
+	
 // Weapon Fire
 public:
 	/* Based on FireMode, Begin the Fire Behavior */

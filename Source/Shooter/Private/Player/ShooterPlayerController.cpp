@@ -2,8 +2,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Debug/LoggerMacros.h"
+#include "Health/HealthComponent.h"
 #include "Inventory/InventoryComponent.h"
 #include "Player/ShooterCharacter.h"
+#include "Player/ShooterPlayerState.h"
 
 AShooterPlayerController::AShooterPlayerController()
 {
@@ -47,6 +49,19 @@ void AShooterPlayerController::BeginPlay()
 		GetLocalPlayer()))
 	{
 		Subsystem->AddMappingContext(InputMappingContext, 0);
+	}
+}
+
+void AShooterPlayerController::OnPossess(APawn* PossessedPawn)
+{
+	Super::OnPossess(PossessedPawn);
+
+	if (ShooterCharacter = Cast<AShooterCharacter>(PossessedPawn); IsValid(ShooterCharacter))	
+	{
+		if (UHealthComponent* HealthComponent = ShooterCharacter->FindComponentByClass<UHealthComponent>())
+		{
+			HealthComponent->OnDeath.AddDynamic(this, &AShooterPlayerController::HandlePawnDeath);
+		}
 	}
 }
 
@@ -102,7 +117,14 @@ void AShooterPlayerController::HandleBeginFireInput(const FInputActionValue& Val
 		return;
 	}
 
-	ShooterCharacter->BeginFire();
+	if (!ShooterCharacter->GetInventoryComponent()->GetIsEquipActive())
+	{
+		ShooterCharacter->BeginFire();
+	}
+	else
+	{
+		ShooterCharacter->EndFire();
+	}
 }
 
 void AShooterPlayerController::HandleEndFireInput(const FInputActionValue& Value)
@@ -124,7 +146,10 @@ void AShooterPlayerController::HandleWeaponReloadInput(const FInputActionValue& 
 		return;
 	}
 
-	ShooterCharacter->ReloadWeapon();
+	if (!ShooterCharacter->GetInventoryComponent()->GetIsEquipActive())
+	{
+		ShooterCharacter->ReloadWeapon();
+	}
 }
 
 void AShooterPlayerController::HandleNextWeaponInput(const FInputActionValue& Value)
@@ -176,4 +201,44 @@ void AShooterPlayerController::HandleToggleViewModeInput(const FInputActionValue
 		: EPlayerViewMode::FirstPerson;
 	
 	ShooterCharacter->SetPlayerViewMode(NewMode);
+}
+
+void AShooterPlayerController::HandlePawnDeath(AController* InstigatedBy, AActor* DamageCauser)
+{
+	if (!ShooterCharacter)
+		return;
+
+	// Disable input
+	DisableInput(this);
+
+	// Switch to third person view
+	ShooterCharacter->SetPlayerViewMode(EPlayerViewMode::ThirdPerson);
+
+	// Update death count
+	if (AShooterPlayerState* MyState = GetPlayerState<AShooterPlayerState>())
+	{
+		MyState->AddDeath();
+	}
+
+	// Award kill to instigator
+	if (InstigatedBy && InstigatedBy != this)
+	{
+		if (APlayerState* InstigatorState = InstigatedBy->PlayerState)
+		{
+			if (AShooterPlayerState* ShooterState = Cast<AShooterPlayerState>(InstigatorState))
+			{
+				ShooterState->AddKill();
+			}
+		}
+	}
+
+	// Unpossess immediately
+	UnPossess();
+
+	// Delay respawn
+	FTimerHandle RespawnTimerHandle;
+	GetWorld()->GetTimerManager().SetTimer(RespawnTimerHandle, [this]()
+	{
+		ServerRestartPlayer();
+	}, 3.0f, false);
 }
