@@ -1,15 +1,20 @@
 #include "Player/ShooterCharacter.h"
 #include "Animation/AnimInstance.h"
+#include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "Debug/LoggerMacros.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/SpectatorPawn.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Health/HealthComponent.h"
 #include "Inventory/InventoryComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Player/ParkourMovementComponent.h"
+#include "Player/ShooterPlayerController.h"
 #include "Weapon/WeaponBase.h"
 
 AShooterCharacter::AShooterCharacter()
@@ -79,7 +84,7 @@ AShooterCharacter::AShooterCharacter()
 	GetCharacterMovement()->AirControlBoostMultiplier = 4.0f;
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
-	
+
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 
 	WeaponSocketName = TEXT("WeaponPoint");
@@ -104,7 +109,24 @@ void AShooterCharacter::BeginPlay()
 		InventoryComponent->EquipWeaponByIndex(0);
 	}
 
-	SetPlayerViewMode(ViewMode);
+	if (HealthComponent)
+	{
+		HealthComponent->OnDeath.AddDynamic(this, &AShooterCharacter::HandleCharacterDeath);
+	}
+}
+
+void AShooterCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	if (AShooterPlayerController* PC = Cast<AShooterPlayerController>(NewController))
+	{
+		SetPlayerViewMode(EPlayerViewMode::FirstPerson);
+	}
+	else
+	{
+		SetPlayerViewMode(EPlayerViewMode::ThirdPerson);
+	}
 }
 
 void AShooterCharacter::Tick(float DeltaTime)
@@ -120,18 +142,6 @@ void AShooterCharacter::Tick(float DeltaTime)
 		AimOffsetYaw = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
 	}
 }
-
-// void AShooterCharacter::Jump()
-// {
-// 	Super::Jump();
-// 	//ParkourMovementComponent->WallRunJump();
-// }
-//
-// void AShooterCharacter::Landed(const FHitResult& Hit)
-// {
-// 	Super::Landed(Hit);
-// 	//ParkourMovementComponent->WallRunLand();
-// }
 
 void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 {
@@ -158,6 +168,17 @@ void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 	}, EquipCooldownDuration, false);
 
 	SetPlayerViewMode(ViewMode);
+}
+
+void AShooterCharacter::Kill()
+{
+	UGameplayStatics::ApplyDamage(
+		this,
+		9999.0f,
+		GetController(),
+		nullptr,
+		UDamageType::StaticClass()
+	);
 }
 
 void AShooterCharacter::BeginFire()
@@ -308,4 +329,68 @@ void AShooterCharacter::PlayEquipMontage(const bool bReverse)
 void AShooterCharacter::OnRep_WeaponActor()
 {
 	AttachWeaponToMesh();
+}
+
+void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser)
+{
+	// Remove and destroy weapon
+	if (InventoryComponent && WeaponActor)
+	{
+		InventoryComponent->RemoveWeapon(WeaponActor);
+		WeaponActor->Destroy();
+		WeaponActor = nullptr;
+	}
+
+	// Disable movement and input
+	GetCharacterMovement()->DisableMovement();
+	DisableInput(nullptr);
+
+	// Enable ragdoll
+	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+	GetMesh()->SetSimulatePhysics(true);
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->StopMovementImmediately();
+
+	// Detach controller
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC)
+	{
+		PC->UnPossess();
+	}
+
+	// Delay camera setup
+	FTimerHandle CameraTimerHandle;
+	GetWorldTimerManager().SetTimer(CameraTimerHandle, [this, PC]()
+	{
+		if (!PC) return;
+
+		// Spawn a camera actor behind and above the character
+		const FVector Offset = FVector(-300, 0, 150);
+		const FVector InitialLocation = GetActorLocation() + Offset;
+		const FRotator InitialRotation = (GetActorLocation() - InitialLocation).Rotation();
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(InitialLocation, InitialRotation, SpawnParams);
+		if (!TrackingCamera) return;
+
+		PC->SetViewTargetWithBlend(TrackingCamera, 1.0f);
+
+		// Attach a tick-like update to track the ragdoll
+		FTimerHandle FollowTimerHandle;
+		GetWorldTimerManager().SetTimer(FollowTimerHandle, [this, TrackingCamera]()
+		{
+			if (!IsValid(this) || !IsValid(TrackingCamera)) return;
+
+			const FVector FocusPoint = GetMesh()->GetComponentLocation();
+			const FVector CamLocation = FocusPoint + FVector(-300, 0, 150);
+			const FRotator CamRotation = (FocusPoint - CamLocation).Rotation();
+
+			TrackingCamera->SetActorLocation(CamLocation);
+			TrackingCamera->SetActorRotation(CamRotation);
+
+		}, 0.02f, true); // runs every frame (50 FPS)
+
+	}, 0.3f, false);
 }

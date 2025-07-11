@@ -205,14 +205,10 @@ void AShooterPlayerController::HandleToggleViewModeInput(const FInputActionValue
 
 void AShooterPlayerController::HandlePawnDeath(AController* InstigatedBy, AActor* DamageCauser)
 {
-	if (!ShooterCharacter)
-		return;
-
-	// Disable input
-	DisableInput(this);
-
-	// Switch to third person view
-	ShooterCharacter->SetPlayerViewMode(EPlayerViewMode::ThirdPerson);
+	if (!IsValid(ShooterCharacter))
+	{
+		return;		
+	}
 
 	// Update death count
 	if (AShooterPlayerState* MyState = GetPlayerState<AShooterPlayerState>())
@@ -232,13 +228,12 @@ void AShooterPlayerController::HandlePawnDeath(AController* InstigatedBy, AActor
 		}
 	}
 
-	// Unpossess immediately
-	UnPossess();
-
-	// Delay respawn
-	FTimerHandle RespawnTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(RespawnTimerHandle, [this]()
-	{
-		ServerRestartPlayer();
-	}, 3.0f, false);
+	//BeginSpectatingState();
+	
+	// // Delay respawn
+	// FTimerHandle RespawnTimerHandle;
+	// GetWorld()->GetTimerManager().SetTimer(RespawnTimerHandle, [this]()
+	// {
+	// 	ServerRestartPlayer();
+	// }, 3.0f, false);
 }

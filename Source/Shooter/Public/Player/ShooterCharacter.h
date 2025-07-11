@@ -98,6 +98,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void PossessedBy(AController* NewController) override;
 	virtual void Tick(float DeltaTime) override;
 
 public:
@@ -111,6 +112,9 @@ private:
 	void OnWeaponEquipped(float EquipCooldownDuration);
 	
 public:
+	UFUNCTION(BlueprintCallable)
+	void Kill();
+	
 	UFUNCTION(BlueprintCallable)
 	void BeginFire();
 
@@ -130,6 +134,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_WeaponActor();
+
+	UFUNCTION()
+	void HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser);
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "AimOffset")

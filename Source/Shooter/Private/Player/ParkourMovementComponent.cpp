@@ -168,6 +168,11 @@ void UParkourMovementComponent::SuppressWallRunning(const float Delay)
 
 void UParkourMovementComponent::CameraTilt(float Roll)
 {
+	if (!IsValid(OwnerCharacter) || !IsValid(OwnerCharacter->GetController()))
+	{
+		return;
+	}
+	
 	const FRotator ControlRotation = OwnerCharacter->GetController()->GetControlRotation();
 	const FRotator TargetRotation = FRotator(ControlRotation.Pitch, ControlRotation.Yaw, Roll);
 	const FRotator TiltRotation = UKismetMathLibrary::RInterpTo(OwnerCharacter->GetController()->GetControlRotation(),
