@@ -53,7 +53,7 @@ void UInventoryComponent::BeginPlay()
                 }
         }
 
-        if (HasAuthority())
+        if (GetOwner() && GetOwner()->HasAuthority())
         {
                 SyncAmmoEntries();
         }
@@ -61,7 +61,7 @@ void UInventoryComponent::BeginPlay()
 
 void UInventoryComponent::AddWeapon(TSubclassOf<AWeaponBase> InWeaponClass)
 {
-        if (!HasAuthority())
+        if (!(GetOwner() && GetOwner()->HasAuthority()))
         {
                 ServerAddWeapon(InWeaponClass);
                 return;
@@ -133,7 +133,7 @@ void UInventoryComponent::RemoveWeapon(AWeaponBase* InWeapon)
 
 void UInventoryComponent::AddAmmo(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
 {
-        if (!HasAuthority())
+        if (!(GetOwner() && GetOwner()->HasAuthority()))
         {
                 ServerAddAmmo(AmmoTypeTag, AmmoAmount);
                 return;
@@ -194,7 +194,7 @@ void UInventoryComponent::EquipWeaponByIndex(const int32 InIndex)
                 return;
         }
 
-        if (!HasAuthority())
+        if (!(GetOwner() && GetOwner()->HasAuthority()))
         {
                 ServerEquipWeaponByIndex(InIndex);
                 return;
