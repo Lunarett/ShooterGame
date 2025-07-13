@@ -13,7 +13,7 @@ void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 {
         Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-        DOREPLIFETIME(UInventoryComponent, AmmoMap);
+        DOREPLIFETIME(UInventoryComponent, AmmoEntries);
         DOREPLIFETIME(UInventoryComponent, WeaponList);
         DOREPLIFETIME(UInventoryComponent, EquippedWeapon);
 }
@@ -33,13 +33,13 @@ void UInventoryComponent::BeginPlay()
 		WeaponList.Reserve(StartingWeaponList.Num());
 
 		// Iterate through each weapon list and spawn the weapon
-		for (TSubclassOf<AWeaponBase> WeaponClass : StartingWeaponList)
-		{
-			if (!WeaponClass)
-			{
-				LOG_WARN_SCREEN("Invalid weapon class, wont spawn that weapon")
-				continue;
-			}
+                for (TSubclassOf<AWeaponBase> WeaponClass : StartingWeaponList)
+                {
+                        if (!WeaponClass)
+                        {
+                                LOG_WARN_SCREEN("Invalid weapon class, wont spawn that weapon")
+                                continue;
+                        }
 
 			AWeaponBase* SpawnedWeapon = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, SpawnParameters);
 			if (!SpawnedWeapon)
@@ -48,10 +48,15 @@ void UInventoryComponent::BeginPlay()
 				continue;
 			}
 
-			// Add spawned weapon to list
-			WeaponList.Add(SpawnedWeapon);
-		}
-	}
+                        // Add spawned weapon to list
+                        WeaponList.Add(SpawnedWeapon);
+                }
+        }
+
+        if (HasAuthority())
+        {
+                SyncAmmoEntries();
+        }
 }
 
 void UInventoryComponent::AddWeapon(TSubclassOf<AWeaponBase> InWeaponClass)
@@ -139,8 +144,9 @@ void UInventoryComponent::AddAmmo(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
                 return;
         }
 
-	int32& CurrentAmount = AmmoMap.FindOrAdd(AmmoTypeTag);
-	CurrentAmount += AmmoAmount;
+        int32& CurrentAmount = AmmoMap.FindOrAdd(AmmoTypeTag);
+        CurrentAmount += AmmoAmount;
+        SyncAmmoEntries();
 }
 
 void UInventoryComponent::ConsumeAmmo(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
@@ -150,8 +156,9 @@ void UInventoryComponent::ConsumeAmmo(FGameplayTag AmmoTypeTag, int32 AmmoAmount
 		return;
 	}
 
-	int32& CurrentAmount = AmmoMap.FindOrAdd(AmmoTypeTag);
-	CurrentAmount = FMath::Max(CurrentAmount - AmmoAmount, 0);
+        int32& CurrentAmount = AmmoMap.FindOrAdd(AmmoTypeTag);
+        CurrentAmount = FMath::Max(CurrentAmount - AmmoAmount, 0);
+        SyncAmmoEntries();
 }
 
 void UInventoryComponent::EquipNextWeapon()
@@ -246,6 +253,27 @@ void UInventoryComponent::OnRep_EquippedWeapon()
 {
         SetWeaponRenderFocus(EquippedWeapon);
         OnWeaponEquippedDelegate.Broadcast(EquipCooldownDuration);
+}
+
+void UInventoryComponent::OnRep_AmmoEntries()
+{
+        AmmoMap.Empty();
+        for (const FAmmoEntry& Entry : AmmoEntries)
+        {
+                AmmoMap.Add(Entry.AmmoTypeTag, Entry.Amount);
+        }
+}
+
+void UInventoryComponent::SyncAmmoEntries()
+{
+        AmmoEntries.Empty();
+        for (const TPair<FGameplayTag, int32>& Pair : AmmoMap)
+        {
+                FAmmoEntry Entry;
+                Entry.AmmoTypeTag = Pair.Key;
+                Entry.Amount = Pair.Value;
+                AmmoEntries.Add(Entry);
+        }
 }
 
 bool UInventoryComponent::ServerAddWeapon_Validate(TSubclassOf<AWeaponBase> InWeaponClass)

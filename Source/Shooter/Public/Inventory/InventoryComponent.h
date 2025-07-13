@@ -15,6 +15,18 @@ class AWeaponBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponEquipped, float, CoolDownDuration);
 
+USTRUCT()
+struct FAmmoEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FGameplayTag AmmoTypeTag;
+
+    UPROPERTY()
+    int32 Amount = 0;
+};
+
 /*
  * Very simple inventory system that holds ammo and scrolls between weapons
  */
@@ -33,8 +45,11 @@ protected:
 	float EquipCooldownDuration = 0.7f;
 	
 	/* Stores amount of ammo the Pawn/Character possesses */
-       UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Inventory|Ammo")
+       UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Ammo")
        TMap<FGameplayTag, int32> AmmoMap;
+
+       UPROPERTY(ReplicatedUsing=OnRep_AmmoEntries)
+       TArray<FAmmoEntry> AmmoEntries;
 
 	/* List of all weapons the player will begin with */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Weapon")
@@ -109,6 +124,11 @@ private:
 
        UFUNCTION()
        void OnRep_EquippedWeapon();
+
+       UFUNCTION()
+       void OnRep_AmmoEntries();
+
+       void SyncAmmoEntries();
 
 	
 	/* Handles hiding the other weapons in your inventory */
