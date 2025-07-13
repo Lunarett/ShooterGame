@@ -113,20 +113,8 @@ void AShooterCharacter::BeginPlay()
 	{
 		HealthComponent->OnDeath.AddDynamic(this, &AShooterCharacter::HandleCharacterDeath);
 	}
-}
 
-void AShooterCharacter::PossessedBy(AController* NewController)
-{
-	Super::PossessedBy(NewController);
-
-	if (AShooterPlayerController* PC = Cast<AShooterPlayerController>(NewController))
-	{
-		SetPlayerViewMode(EPlayerViewMode::FirstPerson);
-	}
-	else
-	{
-		SetPlayerViewMode(EPlayerViewMode::ThirdPerson);
-	}
+	SetPlayerViewMode(EPlayerViewMode::FirstPerson);
 }
 
 void AShooterCharacter::Tick(float DeltaTime)
@@ -250,9 +238,8 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 		LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
 		return;
 	}
-
-	// If we are controlled by AI always use Third-Person perspective
-	ViewMode = IsPawnAIControlled() ? EPlayerViewMode::ThirdPerson : NewViewMode;
+	
+	ViewMode = IsPawnAIControlled() ? EPlayerViewMode::FirstPerson : NewViewMode;
 
 	switch (ViewMode)
 	{
@@ -372,7 +359,8 @@ void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* 
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(InitialLocation, InitialRotation, SpawnParams);
+		ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(
+			InitialLocation, InitialRotation, SpawnParams);
 		if (!TrackingCamera) return;
 
 		PC->SetViewTargetWithBlend(TrackingCamera, 1.0f);
@@ -389,8 +377,6 @@ void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* 
 
 			TrackingCamera->SetActorLocation(CamLocation);
 			TrackingCamera->SetActorRotation(CamRotation);
-
 		}, 0.02f, true); // runs every frame (50 FPS)
-
 	}, 0.3f, false);
 }
