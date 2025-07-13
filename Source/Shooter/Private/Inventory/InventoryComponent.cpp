@@ -1,10 +1,21 @@
 #include "Inventory/InventoryComponent.h"
 #include "GameFramework/Actor.h"
 #include "Weapon/WeaponBase.h"
+#include "Net/UnrealNetwork.h"
 
 UInventoryComponent::UInventoryComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+        PrimaryComponentTick.bCanEverTick = false;
+        SetIsReplicatedByDefault(true);
+}
+
+void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+        Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+        DOREPLIFETIME(UInventoryComponent, AmmoMap);
+        DOREPLIFETIME(UInventoryComponent, WeaponList);
+        DOREPLIFETIME(UInventoryComponent, EquippedWeapon);
 }
 
 void UInventoryComponent::BeginPlay()
@@ -45,7 +56,13 @@ void UInventoryComponent::BeginPlay()
 
 void UInventoryComponent::AddWeapon(TSubclassOf<AWeaponBase> InWeaponClass)
 {
-	if (!InWeaponClass)
+        if (!HasAuthority())
+        {
+                ServerAddWeapon(InWeaponClass);
+                return;
+        }
+
+        if (!InWeaponClass)
 	{
 		LOG_ERROR_SCREEN("Failed to add weapon. You passed an invalid weapon class");
 		return;
@@ -111,10 +128,16 @@ void UInventoryComponent::RemoveWeapon(AWeaponBase* InWeapon)
 
 void UInventoryComponent::AddAmmo(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
 {
-	if (AmmoAmount <= 0)
-	{
-		return;
-	}
+        if (!HasAuthority())
+        {
+                ServerAddAmmo(AmmoTypeTag, AmmoAmount);
+                return;
+        }
+
+        if (AmmoAmount <= 0)
+        {
+                return;
+        }
 
 	int32& CurrentAmount = AmmoMap.FindOrAdd(AmmoTypeTag);
 	CurrentAmount += AmmoAmount;
@@ -159,10 +182,16 @@ void UInventoryComponent::EquipPreviousWeapon()
 
 void UInventoryComponent::EquipWeaponByIndex(const int32 InIndex)
 {
-	if (!WeaponList.IsValidIndex(InIndex))
-	{
-		return;
-	}
+        if (!WeaponList.IsValidIndex(InIndex))
+        {
+                return;
+        }
+
+        if (!HasAuthority())
+        {
+                ServerEquipWeaponByIndex(InIndex);
+                return;
+        }
 
 	bIsEquipActive = true;
 
@@ -210,5 +239,41 @@ void UInventoryComponent::SetWeaponRenderFocus(const AWeaponBase* NewWeaponFocus
 		Weapon->SetActorEnableCollision(bIsFocused);
 		Weapon->SetActorTickEnabled(bIsFocused);
 		Weapon->EndFire();
-	}
+        }
+}
+
+void UInventoryComponent::OnRep_EquippedWeapon()
+{
+        SetWeaponRenderFocus(EquippedWeapon);
+        OnWeaponEquippedDelegate.Broadcast(EquipCooldownDuration);
+}
+
+bool UInventoryComponent::ServerAddWeapon_Validate(TSubclassOf<AWeaponBase> InWeaponClass)
+{
+        return true;
+}
+
+void UInventoryComponent::ServerAddWeapon_Implementation(TSubclassOf<AWeaponBase> InWeaponClass)
+{
+        AddWeapon(InWeaponClass);
+}
+
+bool UInventoryComponent::ServerAddAmmo_Validate(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
+{
+        return true;
+}
+
+void UInventoryComponent::ServerAddAmmo_Implementation(FGameplayTag AmmoTypeTag, int32 AmmoAmount)
+{
+        AddAmmo(AmmoTypeTag, AmmoAmount);
+}
+
+bool UInventoryComponent::ServerEquipWeaponByIndex_Validate(int32 InIndex)
+{
+        return true;
+}
+
+void UInventoryComponent::ServerEquipWeaponByIndex_Implementation(int32 InIndex)
+{
+        EquipWeaponByIndex(InIndex);
 }

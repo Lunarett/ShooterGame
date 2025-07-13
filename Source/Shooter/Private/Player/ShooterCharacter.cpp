@@ -318,7 +318,7 @@ void AShooterCharacter::OnRep_WeaponActor()
 	AttachWeaponToMesh();
 }
 
-void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser)
+void AShooterCharacter::HandleCharacterDeath_Implementation(AController* InstigatedBy, AActor* DamageCauser)
 {
 	// Remove and destroy weapon
 	if (InventoryComponent && WeaponActor)
@@ -328,9 +328,12 @@ void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* 
 		WeaponActor = nullptr;
 	}
 
-	// Disable movement and input
-	GetCharacterMovement()->DisableMovement();
-	DisableInput(nullptr);
+        // Disable movement and input
+        GetCharacterMovement()->DisableMovement();
+        if (IsLocallyControlled())
+        {
+                DisableInput(nullptr);
+        }
 
 	// Enable ragdoll
 	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
@@ -338,45 +341,48 @@ void AShooterCharacter::HandleCharacterDeath(AController* InstigatedBy, AActor* 
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->StopMovementImmediately();
 
-	// Detach controller
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (PC)
-	{
-		PC->UnPossess();
-	}
+        // Detach controller on the server
+        APlayerController* PC = Cast<APlayerController>(GetController());
+        if (HasAuthority() && PC)
+        {
+                PC->UnPossess();
+        }
 
-	// Delay camera setup
-	FTimerHandle CameraTimerHandle;
-	GetWorldTimerManager().SetTimer(CameraTimerHandle, [this, PC]()
-	{
-		if (!PC) return;
+        // Delay camera setup
+        if (PC && PC->IsLocalController())
+        {
+                FTimerHandle CameraTimerHandle;
+                GetWorldTimerManager().SetTimer(CameraTimerHandle, [this, PC]()
+                {
+                        if (!PC) return;
 
-		// Spawn a camera actor behind and above the character
-		const FVector Offset = FVector(-300, 0, 150);
-		const FVector InitialLocation = GetActorLocation() + Offset;
-		const FRotator InitialRotation = (GetActorLocation() - InitialLocation).Rotation();
+                        // Spawn a camera actor behind and above the character
+                        const FVector Offset = FVector(-300, 0, 150);
+                        const FVector InitialLocation = GetActorLocation() + Offset;
+                        const FRotator InitialRotation = (GetActorLocation() - InitialLocation).Rotation();
 
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+                        FActorSpawnParameters SpawnParams;
+                        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(
-			InitialLocation, InitialRotation, SpawnParams);
-		if (!TrackingCamera) return;
+                        ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(
+                                InitialLocation, InitialRotation, SpawnParams);
+                        if (!TrackingCamera) return;
 
-		PC->SetViewTargetWithBlend(TrackingCamera, 1.0f);
+                        PC->SetViewTargetWithBlend(TrackingCamera, 1.0f);
 
-		// Attach a tick-like update to track the ragdoll
-		FTimerHandle FollowTimerHandle;
-		GetWorldTimerManager().SetTimer(FollowTimerHandle, [this, TrackingCamera]()
-		{
-			if (!IsValid(this) || !IsValid(TrackingCamera)) return;
+                        // Attach a tick-like update to track the ragdoll
+                        FTimerHandle FollowTimerHandle;
+                        GetWorldTimerManager().SetTimer(FollowTimerHandle, [this, TrackingCamera]()
+                        {
+                                if (!IsValid(this) || !IsValid(TrackingCamera)) return;
 
-			const FVector FocusPoint = GetMesh()->GetComponentLocation();
-			const FVector CamLocation = FocusPoint + FVector(-300, 0, 150);
-			const FRotator CamRotation = (FocusPoint - CamLocation).Rotation();
+                                const FVector FocusPoint = GetMesh()->GetComponentLocation();
+                                const FVector CamLocation = FocusPoint + FVector(-300, 0, 150);
+                                const FRotator CamRotation = (FocusPoint - CamLocation).Rotation();
 
-			TrackingCamera->SetActorLocation(CamLocation);
-			TrackingCamera->SetActorRotation(CamRotation);
-		}, 0.02f, true); // runs every frame (50 FPS)
-	}, 0.3f, false);
+                                TrackingCamera->SetActorLocation(CamLocation);
+                                TrackingCamera->SetActorRotation(CamRotation);
+                        }, 0.02f, true); // runs every frame (50 FPS)
+                }, 0.3f, false);
+        }
 }

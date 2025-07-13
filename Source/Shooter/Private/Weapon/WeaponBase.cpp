@@ -56,9 +56,10 @@ AWeaponBase::AWeaponBase()
 
 void AWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+        Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(AWeaponBase, OwnerShooterCharacter);
+        DOREPLIFETIME(AWeaponBase, OwnerShooterCharacter);
+        DOREPLIFETIME(AWeaponBase, CurrentClipAmmo);
 }
 
 void AWeaponBase::BeginPlay()
@@ -390,5 +391,10 @@ bool AWeaponBase::CanFire() const
 
 bool AWeaponBase::CanReload() const
 {
-	return !bIsReloadingWeapon && !AmmoData.bInfiniteAmmo && CurrentClipAmmo < AmmoData.ClipSize;
+        return !bIsReloadingWeapon && !AmmoData.bInfiniteAmmo && CurrentClipAmmo < AmmoData.ClipSize;
+}
+
+void AWeaponBase::OnRep_CurrentClipAmmo()
+{
+        // Placeholder for HUD update or any other visual logic when ammo changes
 }

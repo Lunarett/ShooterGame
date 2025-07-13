@@ -134,8 +134,8 @@ private:
 	UFUNCTION()
 	void OnRep_WeaponActor();
 
-	UFUNCTION()
-	void HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser);
+       UFUNCTION(NetMulticast, Reliable)
+       void HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser);
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "AimOffset")
