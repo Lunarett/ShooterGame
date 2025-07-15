@@ -182,22 +182,15 @@ void AWeaponBase::EndFire()
 
 void AWeaponBase::HandleWeaponFire()
 {
-	if (!CanFire())
-	{
-		return;
-	}
+        if (!CanFire())
+        {
+                return;
+        }
 
-	--CurrentClipAmmo;
+        --CurrentClipAmmo;
 
-	// Play Weapon Fire Camera Shake
-	if (FireCameraShake)
-	{
-		if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0); IsValid(
-			CameraManager))
-		{
-			CameraManager->StartCameraShake(FireCameraShake);
-		}
-	}
+       // Trigger camera shake and recoil only on owning client
+       ClientPlayLocalFireEffects();
 
 	// Trigger Weapon Fire Animation
 	MulticastPlayWeaponFireAnimation();
@@ -205,11 +198,6 @@ void AWeaponBase::HandleWeaponFire()
 	// Spawn Weapon Fire Muzzle Effect
 	MulticastPlayMuzzleEffect();
 
-	// Play Recoil
-	if (RecoilComponent && !OwnerShooterCharacter->IsPawnAIControlled())
-	{
-		RecoilComponent->AddRecoil();
-	}
 
 	// Execute actual Fire Logic
 	FireWeapon();
@@ -397,4 +385,27 @@ bool AWeaponBase::CanReload() const
 void AWeaponBase::OnRep_CurrentClipAmmo()
 {
         // Placeholder for HUD update or any other visual logic when ammo changes
+}
+
+void AWeaponBase::ClientPlayLocalFireEffects_Implementation()
+{
+        if (!OwnerShooterCharacter || !OwnerShooterCharacter->IsLocallyControlled())
+        {
+                return;
+        }
+
+        // Camera shake for the owning player
+        if (FireCameraShake)
+        {
+                if (APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0); IsValid(CameraManager))
+                {
+                        CameraManager->StartCameraShake(FireCameraShake);
+                }
+        }
+
+        // Recoil only for human controlled pawns
+        if (RecoilComponent && !OwnerShooterCharacter->IsPawnAIControlled())
+        {
+                RecoilComponent->AddRecoil();
+        }
 }

@@ -159,6 +159,10 @@ private:
 
        UFUNCTION()
        void OnRep_CurrentClipAmmo();
+
+       // Play recoil and camera shake locally on the owning client
+       UFUNCTION(Client, Reliable)
+       void ClientPlayLocalFireEffects();
 	
 public:
 	void SetViewMode(EPlayerViewMode ViewMode);
