@@ -13,7 +13,10 @@ public:
 	AProjectileWeapon();
 
 protected:
-	virtual void FireWeapon() override;
+        virtual void FireWeapon() override;
+
+       UFUNCTION(Client, Reliable)
+       void ClientSpawnLocalProjectile(const FVector& SpawnLocation, const FRotator& SpawnRotation, const FVector& Direction);
 
 	// The projectile class to spawn.
 	UPROPERTY(EditDefaultsOnly, Category = "Projectile")

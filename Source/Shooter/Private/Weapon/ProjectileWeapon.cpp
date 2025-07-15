@@ -88,11 +88,37 @@ void AProjectileWeapon::FireWeapon()
 	SpawnParams.Instigator = Shooter;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	// Spawn the projectile; note that since this is called on the server (or via an RPC), it will replicate to clients.
-	AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, MuzzleLocation, SpreadFireDirection.Rotation(), SpawnParams);
-	if (Projectile)
-	{
-		// Let the projectile know its fire direction (with spread).
-		Projectile->FireInDirection(SpreadFireDirection);
-	}
+        // Spawn the projectile; note that since this is called on the server (or via an RPC), it will replicate to clients.
+        AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, MuzzleLocation, SpreadFireDirection.Rotation(), SpawnParams);
+        if (Projectile)
+        {
+                Projectile->FireInDirection(SpreadFireDirection);
+        }
+
+        // Tell the owning client to spawn a local visual projectile for prediction
+        if (Shooter && !Shooter->IsLocallyControlled())
+        {
+                ClientSpawnLocalProjectile(MuzzleLocation, SpreadFireDirection.Rotation(), SpreadFireDirection);
+        }
+}
+
+void AProjectileWeapon::ClientSpawnLocalProjectile_Implementation(const FVector& SpawnLocation, const FRotator& SpawnRotation, const FVector& Direction)
+{
+        if (!ProjectileClass)
+        {
+                return;
+        }
+
+        FActorSpawnParameters Params;
+        Params.Owner = this;
+        Params.Instigator = Cast<APawn>(GetOwner());
+        Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        AProjectileBase* Projectile = GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnLocation, SpawnRotation, Params);
+        if (Projectile)
+        {
+                Projectile->SetReplicates(false);
+                Projectile->SetReplicateMovement(false);
+                Projectile->FireInDirection(Direction);
+        }
 }

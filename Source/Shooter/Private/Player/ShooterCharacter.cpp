@@ -75,13 +75,14 @@ AShooterCharacter::AShooterCharacter()
 	TPSpringArmComponent->SocketOffset = FVector(0, 50, 50);
 	TPSpringArmComponent->SetRelativeLocation(FVector(0, 0, 96));
 
-	ParkourMovementComponent = CreateDefaultSubobject<UParkourMovementComponent>(TEXT("Parkour Movement"));
+        ParkourMovementComponent = CreateDefaultSubobject<UParkourMovementComponent>(ACharacter::CharacterMovementComponentName);
+        CharacterMovement = ParkourMovementComponent;
 
-	GetCharacterMovement()->MaxWalkSpeed = 1200.0f;
-	GetCharacterMovement()->GravityScale = 2.0f;
-	GetCharacterMovement()->JumpZVelocity = 720.0f;
-	GetCharacterMovement()->AirControl = 2.0f;
-	GetCharacterMovement()->AirControlBoostMultiplier = 4.0f;
+        ParkourMovementComponent->MaxWalkSpeed = 1200.0f;
+        ParkourMovementComponent->GravityScale = 2.0f;
+        ParkourMovementComponent->JumpZVelocity = 720.0f;
+        ParkourMovementComponent->AirControl = 2.0f;
+        ParkourMovementComponent->AirControlBoostMultiplier = 4.0f;
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
 
