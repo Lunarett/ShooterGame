@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "ParkourMovementComponent.generated.h"
 
 class ACharacter;
@@ -11,10 +12,12 @@ class ACharacter;
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class SHOOTER_API UParkourMovementComponent : public UActorComponent
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
 public:
-	UParkourMovementComponent();
+        UParkourMovementComponent();
+
+       virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Parkour Movement")
@@ -45,15 +48,26 @@ protected:
 	float WallRunJumpHeight;
 
 private:
-	UPROPERTY()
-	ACharacter* OwnerCharacter;
+       UPROPERTY()
+       ACharacter* OwnerCharacter;
 
-	bool bIsWallRunning;
-	bool bIsWallRunningLeft;
-	bool bIsWallRunningRight;
-	bool bIsWallSuppressed;
-	float InitialGravityScale;
-	FVector WallRunNormal;
+       UPROPERTY(Replicated)
+       bool bIsWallRunning;
+
+       UPROPERTY(Replicated)
+       bool bIsWallRunningLeft;
+
+       UPROPERTY(Replicated)
+       bool bIsWallRunningRight;
+
+       UPROPERTY(Replicated)
+       bool bIsWallSuppressed;
+
+       UPROPERTY(Replicated)
+       float InitialGravityScale;
+
+       UPROPERTY(Replicated)
+       FVector WallRunNormal;
 
 	FTimerHandle UpdateTimerHandle;
 	FTimerHandle WallRunSuppressTimerHandle;

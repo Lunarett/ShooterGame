@@ -3,10 +3,12 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 UParkourMovementComponent::UParkourMovementComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+        PrimaryComponentTick.bCanEverTick = true;
+       SetIsReplicatedByDefault(true);
 
 	UpdateRate = 0.02f;
 
@@ -224,9 +226,21 @@ bool UParkourMovementComponent::IsValidImpactNormal(const FVector& ImpactNormal)
 
 FVector UParkourMovementComponent::CalculateStickToWallVelocity()
 {
-	const FVector Location = OwnerCharacter->GetActorLocation();
-	const FVector Combined = Location + WallRunNormal;
-	const float Length = Combined.Length();
+        const FVector Location = OwnerCharacter->GetActorLocation();
+        const FVector Combined = Location + WallRunNormal;
+        const float Length = Combined.Length();
 
-	return WallRunNormal * Length;
+        return WallRunNormal * Length;
+}
+
+void UParkourMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+       Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunning);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningLeft);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningRight);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallSuppressed);
+       DOREPLIFETIME(UParkourMovementComponent, InitialGravityScale);
+       DOREPLIFETIME(UParkourMovementComponent, WallRunNormal);
 }
