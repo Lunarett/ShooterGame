@@ -114,7 +114,9 @@ void AShooterCharacter::BeginPlay()
 		HealthComponent->OnDeath.AddDynamic(this, &AShooterCharacter::HandleCharacterDeath);
 	}
 
-	SetPlayerViewMode(EPlayerViewMode::FirstPerson);
+    // Initialize view mode depending on local control so remotes show the third person body
+    const EPlayerViewMode InitialView = IsLocallyControlled() ? EPlayerViewMode::FirstPerson : EPlayerViewMode::ThirdPerson;
+    SetPlayerViewMode(InitialView);
 }
 
 void AShooterCharacter::Tick(float DeltaTime)
@@ -144,8 +146,12 @@ void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 
 	bCanInteractWithWeapon = false;
 
-	// Attach meshes
-	AttachWeaponToMesh();
+    // Attach meshes and set weapon view mode
+    AttachWeaponToMesh();
+    if (WeaponActor)
+    {
+            WeaponActor->SetViewMode(ViewMode);
+    }
 
 	// Play equip animation
 	PlayEquipMontage(false);
@@ -239,42 +245,46 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 		return;
 	}
 	
-	ViewMode = IsPawnAIControlled() ? EPlayerViewMode::FirstPerson : NewViewMode;
+    // Remote players and AI should always display as third person
+    ViewMode = IsLocallyControlled() ? NewViewMode : EPlayerViewMode::ThirdPerson;
 
 	switch (ViewMode)
 	{
-	case EPlayerViewMode::FirstPerson:
-		FPMesh->SetOnlyOwnerSee(true);
-		FPMesh->SetOwnerNoSee(false);
-		GetMesh()->SetOnlyOwnerSee(false);
-		GetMesh()->SetOwnerNoSee(true);
-		CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-		CameraComponent->AttachToComponent(CameraSkeletalMesh, FAttachmentTransformRules::KeepRelativeTransform);
-		CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-		CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
-		bUseControllerRotationPitch = true;
-		bUseControllerRotationYaw = true;
-		bUseControllerRotationRoll = false;
-		break;
-	case EPlayerViewMode::ThirdPerson:
-		FPMesh->SetOnlyOwnerSee(false);
-		FPMesh->SetOwnerNoSee(true);
-		GetMesh()->SetOnlyOwnerSee(true);
-		GetMesh()->SetOwnerNoSee(false);
-		CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-		CameraComponent->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
-		CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-		CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
-		bUseControllerRotationPitch = false;
-		bUseControllerRotationYaw = true;
-		bUseControllerRotationRoll = false;
-		break;
-	}
+        case EPlayerViewMode::FirstPerson:
+                FPMesh->SetOnlyOwnerSee(true);
+                FPMesh->SetOwnerNoSee(false);
+                FPMesh->SetHiddenInGame(false, true);
+                GetMesh()->SetOnlyOwnerSee(false);
+                GetMesh()->SetOwnerNoSee(true);
+                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraComponent->AttachToComponent(CameraSkeletalMesh, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
+                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+                bUseControllerRotationYaw = true;
+                bUseControllerRotationRoll = false;
+                break;
+        case EPlayerViewMode::ThirdPerson:
+                FPMesh->SetOnlyOwnerSee(false);
+                FPMesh->SetOwnerNoSee(true);
+                FPMesh->SetHiddenInGame(true, true);
+                GetMesh()->SetOnlyOwnerSee(false);
+                GetMesh()->SetOwnerNoSee(false);
+                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraComponent->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
+                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+                bUseControllerRotationYaw = true;
+                bUseControllerRotationRoll = false;
+                break;
+        }
 
-	if (WeaponActor)
-	{
-		WeaponActor->SetViewMode(NewViewMode);
-	}
+        // Only locally controlled pawns should use controller pitch
+        bUseControllerRotationPitch = IsLocallyControlled();
+
+        if (WeaponActor)
+        {
+                WeaponActor->SetViewMode(ViewMode);
+        }
 }
 
 void AShooterCharacter::AttachWeaponToMesh()
@@ -315,7 +325,11 @@ void AShooterCharacter::PlayEquipMontage(const bool bReverse)
 
 void AShooterCharacter::OnRep_WeaponActor()
 {
-	AttachWeaponToMesh();
+        AttachWeaponToMesh();
+        if (WeaponActor)
+        {
+                WeaponActor->SetViewMode(ViewMode);
+        }
 }
 
 void AShooterCharacter::HandleCharacterDeath_Implementation(AController* InstigatedBy, AActor* DamageCauser)
