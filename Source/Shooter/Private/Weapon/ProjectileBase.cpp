@@ -76,8 +76,7 @@ void AProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 		UGameplayStatics::ApplyPointDamage(OtherActor, DamageAmount, ProjectileMovementComponent->Velocity.GetSafeNormal(), Hit, GetInstigatorController(), this, UDamageType::StaticClass());
 	}
 
-	SpawnImpactEffect(Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
-	SpawnDecal(Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+       MulticastSpawnImpactEffects(Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
 		
 	// Self Destruct on Impact
 	Destroy();
@@ -119,5 +118,11 @@ void AProjectileBase::SpawnDecal(const FVector& Location, const FRotator& Rotati
 
 void AProjectileBase::OnLifetimeExpired()
 {
-	Destroy();
+        Destroy();
+}
+
+void AProjectileBase::MulticastSpawnImpactEffects_Implementation(const FVector& Location, const FRotator& Rotation)
+{
+       SpawnImpactEffect(Location, Rotation);
+       SpawnDecal(Location, Rotation);
 }
