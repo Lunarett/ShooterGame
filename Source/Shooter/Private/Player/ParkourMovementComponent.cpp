@@ -3,6 +3,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 UParkourMovementComponent::UParkourMovementComponent()
 {
@@ -16,6 +17,15 @@ UParkourMovementComponent::UParkourMovementComponent()
 
 	bUseGravity = true;
 	WallRunGravity = 0.0f;
+}
+
+void UParkourMovementComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(UParkourMovementComponent, bIsWallRunning);
+	DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningLeft);
+	DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningRight);
 }
 
 void UParkourMovementComponent::BeginPlay()
@@ -36,7 +46,7 @@ void UParkourMovementComponent::BeginPlay()
 		return;
 	}
 
-	InitialGravityScale = OwnerCharacter->GetCharacterMovement()->GravityScale;
+	InitialGravityScale = GravityScale;
 
 	GetWorld()->GetTimerManager().SetTimer(UpdateTimerHandle, this, &UParkourMovementComponent::UpdateParkourMovement,
 	                                       UpdateRate, true);
@@ -73,6 +83,12 @@ void UParkourMovementComponent::UpdateParkourMovement()
 
 void UParkourMovementComponent::UpdateWallRun()
 {
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerUpdateWallRun();
+		return;
+	}
+	
 	FVector Left, Right;
 	GetWallRunEndVectors(Left, Right);
 
@@ -101,27 +117,33 @@ void UParkourMovementComponent::UpdateWallRun()
 	}
 
 	const float InterpolatedGravityScale = UKismetMathLibrary::FInterpTo(
-		OwnerCharacter->GetCharacterMovement()->GravityScale,
+		GravityScale,
 		WallRunGravity, GetWorld()->GetDeltaSeconds(), 0.01f);
 
-	OwnerCharacter->GetCharacterMovement()->GravityScale = InterpolatedGravityScale;
+	GravityScale = InterpolatedGravityScale;
 }
 
 bool UParkourMovementComponent::HandleWallRunning(const FVector& Start, const FVector& End, const float Direction)
 {
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerHandleWallRunning(Start, End, Direction);
+		return false;
+	}
+	
 	FHitResult HitResult;
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(GetOwner());
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, CollisionParams))
 	{
-		const bool bIsFalling = OwnerCharacter->GetCharacterMovement()->IsFalling();
+		const bool bIsFalling = IsFalling();
 
 		// Climb only on actors that have the tag
 		if (HitResult.GetActor()->ActorHasTag(ActorWallTag) && bIsFalling &&
 			IsValidImpactNormal(HitResult.ImpactNormal))
 		{
-			OwnerCharacter->GetCharacterMovement()->GravityScale = WallRunGravity;
+			GravityScale = WallRunGravity;
 			WallRunNormal = HitResult.ImpactNormal;
 
 			const FVector StickToWallVelocity = CalculateStickToWallVelocity();
@@ -140,6 +162,12 @@ bool UParkourMovementComponent::HandleWallRunning(const FVector& Start, const FV
 
 void UParkourMovementComponent::WallRunEnd(float ResetTimer)
 {
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerWallRunEnd(ResetTimer);
+		return;
+	}
+	
 	if (!bIsWallRunning)
 	{
 		return;
@@ -149,7 +177,7 @@ void UParkourMovementComponent::WallRunEnd(float ResetTimer)
 	bIsWallRunningRight = false;
 	bIsWallRunningLeft = false;
 
-	OwnerCharacter->GetCharacterMovement()->GravityScale = InitialGravityScale;
+	GravityScale = InitialGravityScale;
 	SuppressWallRunning(ResetTimer);
 }
 
@@ -183,12 +211,24 @@ void UParkourMovementComponent::CameraTilt(float Roll)
 
 void UParkourMovementComponent::WallRunLand()
 {
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerWallRunLand();
+		return;
+	}
+	
 	WallRunEnd(0.0f);
 	bIsWallSuppressed = false;
 }
 
 void UParkourMovementComponent::WallRunJump()
 {
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerWallRunJump();
+		return;
+	}
+	
 	if (!bIsWallRunning)
 	{
 		return;
@@ -229,4 +269,30 @@ FVector UParkourMovementComponent::CalculateStickToWallVelocity()
 	const float Length = Combined.Length();
 
 	return WallRunNormal * Length;
+}
+
+void UParkourMovementComponent::ServerWallRunEnd_Implementation(float ResetTimer)
+{
+	WallRunEnd(ResetTimer);
+}
+
+void UParkourMovementComponent::ServerWallRunLand_Implementation()
+{
+	WallRunLand();
+}
+
+void UParkourMovementComponent::ServerWallRunJump_Implementation()
+{
+	WallRunJump();
+}
+
+void UParkourMovementComponent::ServerHandleWallRunning_Implementation(const FVector& Start, const FVector& End,
+                                                                       const float Direction)
+{
+	HandleWallRunning(Start, End, Direction);
+}
+
+void UParkourMovementComponent::ServerUpdateWallRun_Implementation()
+{
+	UpdateWallRun();
 }

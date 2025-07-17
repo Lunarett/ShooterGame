@@ -4,12 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/MovementComponent.h"
 #include "ParkourMovementComponent.generated.h"
 
 class ACharacter;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class SHOOTER_API UParkourMovementComponent : public UActorComponent
+class SHOOTER_API UParkourMovementComponent : public UCharacterMovementComponent
 {
 	GENERATED_BODY()
 
@@ -43,14 +45,20 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Parkour Movement|Wall Run")
 	float WallRunJumpHeight;
-
+	
 private:
 	UPROPERTY()
 	ACharacter* OwnerCharacter;
 
+	UPROPERTY(Replicated)
 	bool bIsWallRunning;
+	
+	UPROPERTY(Replicated)
 	bool bIsWallRunningLeft;
+
+	UPROPERTY(Replicated)
 	bool bIsWallRunningRight;
+	
 	bool bIsWallSuppressed;
 	float InitialGravityScale;
 	FVector WallRunNormal;
@@ -59,6 +67,7 @@ private:
 	FTimerHandle WallRunSuppressTimerHandle;
 
 protected:
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
 
 public:
@@ -98,4 +107,22 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	FORCEINLINE bool GetIsWallRunning() const { return bIsWallRunning; }
+
+
+private:
+	// -- Server RPC --
+	UFUNCTION(Server, Reliable)
+	void ServerUpdateWallRun();
+
+	UFUNCTION(Server, Reliable)
+	void ServerHandleWallRunning(const FVector& Start, const FVector& End, const float Direction);
+
+	UFUNCTION(Server, Reliable)
+	void ServerWallRunEnd(float ResetTimer);
+	
+	UFUNCTION(Server, Reliable)
+	void ServerWallRunLand();
+
+	UFUNCTION(Server, Reliable)
+	void ServerWallRunJump();
 };
