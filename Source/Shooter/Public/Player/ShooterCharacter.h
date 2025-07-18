@@ -34,35 +34,29 @@ public:
 	AShooterCharacter();
 
 protected:
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
-	USceneComponent* FPRootSceneComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        USpringArmComponent* FPMeshRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* FPMeshRootSpringArmComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        USkeletalMeshComponent* FPMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USceneComponent* OffsetRootSceneComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        USpringArmComponent* FPCameraRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USkeletalMeshComponent* FPMesh;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        USkeletalMeshComponent* CameraSkeletalMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* FPCameraRootSpringArmComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        UCameraComponent* CameraComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USkeletalMeshComponent* CameraSkeletalMesh;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        USpringArmComponent* TPSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	UCameraComponent* CameraComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        UHealthComponent* HealthComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* TPSpringArmComponent;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	UHealthComponent* HealthComponent;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
-	UInventoryComponent* InventoryComponent;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+        UInventoryComponent* InventoryComponent;
 
 
 protected:

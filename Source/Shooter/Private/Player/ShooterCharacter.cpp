@@ -34,19 +34,13 @@ AShooterCharacter::AShooterCharacter()
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
-	FPRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("FP_Root"));
-	FPRootSceneComponent->SetupAttachment(RootComponent);
+       FPMeshRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Mesh_Root"));
+       FPMeshRootSpringArmComponent->SetupAttachment(RootComponent);
+       FPMeshRootSpringArmComponent->bUsePawnControlRotation = true;
 
-	FPMeshRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Mesh_Root"));
-	FPMeshRootSpringArmComponent->SetupAttachment(FPRootSceneComponent);
-	FPMeshRootSpringArmComponent->bUsePawnControlRotation = true;
-
-	OffsetRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Offset_Root"));
-	OffsetRootSceneComponent->SetupAttachment(FPMeshRootSpringArmComponent);
-
-	FPMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
-	FPMesh->SetupAttachment(OffsetRootSceneComponent);
-	FPMesh->SetRelativeLocation(FVector(0, 0, -96));
+       FPMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
+       FPMesh->SetupAttachment(FPMeshRootSpringArmComponent);
+       FPMesh->SetRelativeLocation(FVector(0, 0, -96));
 	FPMesh->SetOnlyOwnerSee(true);
 	FPMesh->SetOwnerNoSee(false);
 	FPMesh->SetCastShadow(false);
@@ -56,9 +50,9 @@ AShooterCharacter::AShooterCharacter()
 	FPMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FPMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 
-	FPCameraRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera_Root"));
-	FPCameraRootSpringArmComponent->SetupAttachment(FPRootSceneComponent);
-	FPCameraRootSpringArmComponent->bUsePawnControlRotation = true;
+       FPCameraRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera_Root"));
+       FPCameraRootSpringArmComponent->SetupAttachment(RootComponent);
+       FPCameraRootSpringArmComponent->bUsePawnControlRotation = true;
 
 	CameraSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Camera_SkeletalMesh"));
 	CameraSkeletalMesh->SetupAttachment(FPCameraRootSpringArmComponent);
@@ -254,10 +248,10 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
                 FPMesh->SetHiddenInGame(false, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(true);
-                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-                CameraComponent->AttachToComponent(CameraSkeletalMesh, FAttachmentTransformRules::KeepRelativeTransform);
-                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+               CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+               CameraSkeletalMesh->AttachToComponent(FPCameraRootSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+               CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+               CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
@@ -267,10 +261,10 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
                 FPMesh->SetHiddenInGame(true, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(false);
-                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-                CameraComponent->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
-                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+               CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+               CameraSkeletalMesh->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+               CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+               CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
