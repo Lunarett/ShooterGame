@@ -13,7 +13,6 @@
 #include "Inventory/InventoryComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-#include "Player/ParkourMovementComponent.h"
 #include "Player/ShooterPlayerController.h"
 #include "Weapon/WeaponBase.h"
 
@@ -75,7 +74,6 @@ AShooterCharacter::AShooterCharacter()
 	TPSpringArmComponent->SocketOffset = FVector(0, 50, 50);
 	TPSpringArmComponent->SetRelativeLocation(FVector(0, 0, 96));
 
-	ParkourMovementComponent = CreateDefaultSubobject<UParkourMovementComponent>(TEXT("Parkour Movement"));
 
 	GetCharacterMovement()->MaxWalkSpeed = 1200.0f;
 	GetCharacterMovement()->GravityScale = 2.0f;

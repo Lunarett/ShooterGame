@@ -8,7 +8,6 @@
 #include "Weapon/AmmoProvider.h"
 #include "ShooterCharacter.generated.h"
 
-class UParkourMovementComponent;
 
 UENUM(BlueprintType)
 enum class EPlayerViewMode : uint8
@@ -65,8 +64,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
 	UInventoryComponent* InventoryComponent;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
-	UParkourMovementComponent* ParkourMovementComponent;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
