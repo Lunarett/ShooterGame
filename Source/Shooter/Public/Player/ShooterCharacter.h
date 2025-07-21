@@ -1,5 +1,10 @@
 // ShooterCharacter.h
 
+/**
+ * Player controlled character used in Shooter. Handles weapon management,
+ * first/third person camera switching and replication of relevant state.
+ */
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,6 +14,7 @@
 #include "ShooterCharacter.generated.h"
 
 
+// Possible camera perspectives for the player
 UENUM(BlueprintType)
 enum class EPlayerViewMode : uint8
 {
@@ -32,9 +38,12 @@ class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
         GENERATED_BODY()
 
 public:
-	AShooterCharacter();
+        AShooterCharacter();
 
 protected:
+       // --------------------------------------------------------------------
+       // Components
+       // --------------------------------------------------------------------
        /** Spring arm used to position the first person mesh */
        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
        USpringArmComponent* FPMeshRootSpringArmComponent;
@@ -69,6 +78,9 @@ protected:
 
 
 protected:
+       // --------------------------------------------------------------------
+       // Configuration
+       // --------------------------------------------------------------------
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
 	FName WeaponSocketName;
 	
@@ -84,8 +96,11 @@ protected:
 	
 
 private:
-	UPROPERTY(Replicated)
-	float AimOffsetYaw;
+       // --------------------------------------------------------------------
+       // Replicated state
+       // --------------------------------------------------------------------
+       UPROPERTY(Replicated)
+       float AimOffsetYaw;
 
 	UPROPERTY(Replicated)
 	float AimOffsetPitch;
@@ -98,8 +113,8 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
+       virtual void BeginPlay() override;
+       virtual void Tick(float DeltaTime) override;
 
 public:
 	//virtual void Jump() override;
@@ -130,20 +145,22 @@ public:
        void SetPlayerViewMode(EPlayerViewMode NewViewMode);
 
 private:
-       /** Applies the current view mode locally */
+       /** Applies the current view mode locally on this instance */
        void ApplyViewMode();
 
        UFUNCTION(Server, Reliable)
        void ServerSetPlayerViewMode(EPlayerViewMode NewViewMode);
 
        UFUNCTION()
+       /** Called when ViewMode is replicated */
        void OnRep_ViewMode();
 
        void AttachWeaponToMesh();
        void PlayEquipMontage(bool bReverse);
 
-	UFUNCTION()
-	void OnRep_WeaponActor();
+       UFUNCTION()
+        /** Called when the equipped weapon changes */
+        void OnRep_WeaponActor();
 
        UFUNCTION(NetMulticast, Reliable)
        void HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser);
