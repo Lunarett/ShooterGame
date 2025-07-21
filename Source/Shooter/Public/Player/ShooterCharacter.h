@@ -1,5 +1,10 @@
 // ShooterCharacter.h
 
+/**
+ * Player controlled character used in Shooter. Handles weapon management,
+ * first/third person camera switching and replication of relevant state.
+ */
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,8 +13,8 @@
 #include "Weapon/AmmoProvider.h"
 #include "ShooterCharacter.generated.h"
 
-class UParkourMovementComponent;
 
+// Possible camera perspectives for the player
 UENUM(BlueprintType)
 enum class EPlayerViewMode : uint8
 {
@@ -27,48 +32,55 @@ class UAnimMontage;
 class UHealthComponent;
 
 UCLASS()
+/** Main player character class. Handles first/third person switching and weapon logic. */
 class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
 public:
-	AShooterCharacter();
+        AShooterCharacter();
 
 protected:
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|FP Components")
-	USceneComponent* FPRootSceneComponent;
+       // --------------------------------------------------------------------
+       // Components
+       // --------------------------------------------------------------------
+       /** Spring arm used to position the first person mesh */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* FPMeshRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* FPMeshRootSpringArmComponent;
+       /** First person body mesh */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USkeletalMeshComponent* FPMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USceneComponent* OffsetRootSceneComponent;
+       /** Spring arm used for the first person camera */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* FPCameraRootSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USkeletalMeshComponent* FPMesh;
+       /** Mesh used to attach the camera for animations */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USkeletalMeshComponent* CameraSkeletalMesh;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* FPCameraRootSpringArmComponent;
+       /** Player camera component */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UCameraComponent* CameraComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USkeletalMeshComponent* CameraSkeletalMesh;
+       /** Third person camera spring arm */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* TPSpringArmComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	UCameraComponent* CameraComponent;
+       /** Manages health and damage */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UHealthComponent* HealthComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	USpringArmComponent* TPSpringArmComponent;
+       /** Handles weapons and ammo */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UInventoryComponent* InventoryComponent;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Shooter Character|Components")
-	UHealthComponent* HealthComponent;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
-	UInventoryComponent* InventoryComponent;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Shooter Character|Components")
-	UParkourMovementComponent* ParkourMovementComponent;
 
 protected:
+       // --------------------------------------------------------------------
+       // Configuration
+       // --------------------------------------------------------------------
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Weapon")
 	FName WeaponSocketName;
 	
@@ -78,16 +90,43 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Animations")
 	UAnimMontage* EquipMontage;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
-	EPlayerViewMode ViewMode;
+       /** Current camera mode */
+       UPROPERTY(ReplicatedUsing = OnRep_ViewMode, EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
+       EPlayerViewMode ViewMode;
 	
 
 private:
-	UPROPERTY(Replicated)
-	float AimOffsetYaw;
+       // --------------------------------------------------------------------
+       // Replicated state
+       // --------------------------------------------------------------------
+       /** Yaw used for third person aim offset animations */
+       UPROPERTY(ReplicatedUsing = OnRep_AimOffsetYaw)
+       float ReplicatedAimOffsetYaw;
 
-	UPROPERTY(Replicated)
-	float AimOffsetPitch;
+       /** Pitch used for third person aim offset animations */
+       UPROPERTY(ReplicatedUsing = OnRep_AimOffsetPitch)
+       float ReplicatedAimOffsetPitch;
+
+       /** Locally calculated yaw */
+       float AimOffsetYaw;
+
+       /** Locally calculated pitch */
+       float AimOffsetPitch;
+
+       /** Time of last aim offset update sent to the server */
+       float LastAimOffsetUpdateTime;
+
+       /** Last yaw value sent to the server */
+       float LastSentAimOffsetYaw;
+
+       /** Last pitch value sent to the server */
+       float LastSentAimOffsetPitch;
+
+       /** Interval in seconds between aim offset updates */
+       float AimOffsetRepInterval;
+
+       /** Minimum delta before sending a new aim offset */
+       float AimOffsetSendThreshold;
 
 	bool bCanInteractWithWeapon;
 
@@ -97,8 +136,8 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
+       virtual void BeginPlay() override;
+       virtual void Tick(float DeltaTime) override;
 
 public:
 	//virtual void Jump() override;
@@ -125,14 +164,38 @@ public:
 
 	virtual int32 RequestAmmo_Implementation(FGameplayTag AmmoType, int32 RequestedAmount) override;
 
-	void SetPlayerViewMode(EPlayerViewMode NewViewMode);
+       /** Requests a view mode change. Will be replicated to all clients. */
+       void SetPlayerViewMode(EPlayerViewMode NewViewMode);
 
 private:
-	void AttachWeaponToMesh();
-	void PlayEquipMontage(bool bReverse);
+       /** Applies the current view mode locally on this instance */
+       void ApplyViewMode();
 
-	UFUNCTION()
-	void OnRep_WeaponActor();
+       UFUNCTION(Server, Reliable)
+       void ServerSetPlayerViewMode(EPlayerViewMode NewViewMode);
+
+       UFUNCTION(Server, Unreliable)
+       void ServerUpdateAimOffset(float Yaw, float Pitch);
+
+       UFUNCTION()
+       /** Called when ViewMode is replicated */
+       void OnRep_ViewMode();
+
+       UFUNCTION()
+       void OnRep_AimOffsetYaw();
+
+       UFUNCTION()
+       void OnRep_AimOffsetPitch();
+
+       /** Updates and potentially replicates aim offset values */
+       void UpdateAimOffset(float DeltaTime);
+
+       void AttachWeaponToMesh();
+       void PlayEquipMontage(bool bReverse);
+
+       UFUNCTION()
+        /** Called when the equipped weapon changes */
+        void OnRep_WeaponActor();
 
        UFUNCTION(NetMulticast, Reliable)
        void HandleCharacterDeath(AController* InstigatedBy, AActor* DamageCauser);
