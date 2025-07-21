@@ -26,37 +26,46 @@ class UAnimMontage;
 class UHealthComponent;
 
 UCLASS()
+/** Main player character class. Handles first/third person switching and weapon logic. */
 class SHOOTER_API AShooterCharacter : public ACharacter, public IAmmoProvider
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
 public:
 	AShooterCharacter();
 
 protected:
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        USpringArmComponent* FPMeshRootSpringArmComponent;
+       /** Spring arm used to position the first person mesh */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* FPMeshRootSpringArmComponent;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        USkeletalMeshComponent* FPMesh;
+       /** First person body mesh */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USkeletalMeshComponent* FPMesh;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        USpringArmComponent* FPCameraRootSpringArmComponent;
+       /** Spring arm used for the first person camera */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* FPCameraRootSpringArmComponent;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        USkeletalMeshComponent* CameraSkeletalMesh;
+       /** Mesh used to attach the camera for animations */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USkeletalMeshComponent* CameraSkeletalMesh;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        UCameraComponent* CameraComponent;
+       /** Player camera component */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UCameraComponent* CameraComponent;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        USpringArmComponent* TPSpringArmComponent;
+       /** Third person camera spring arm */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       USpringArmComponent* TPSpringArmComponent;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        UHealthComponent* HealthComponent;
+       /** Manages health and damage */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UHealthComponent* HealthComponent;
 
-        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
-        UInventoryComponent* InventoryComponent;
+       /** Handles weapons and ammo */
+       UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shooter Character|Components")
+       UInventoryComponent* InventoryComponent;
 
 
 protected:
@@ -69,8 +78,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character|Animations")
 	UAnimMontage* EquipMontage;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
-	EPlayerViewMode ViewMode;
+       /** Current camera mode */
+       UPROPERTY(ReplicatedUsing = OnRep_ViewMode, EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter Character")
+       EPlayerViewMode ViewMode;
 	
 
 private:
@@ -116,11 +126,21 @@ public:
 
 	virtual int32 RequestAmmo_Implementation(FGameplayTag AmmoType, int32 RequestedAmount) override;
 
-	void SetPlayerViewMode(EPlayerViewMode NewViewMode);
+       /** Requests a view mode change. Will be replicated to all clients. */
+       void SetPlayerViewMode(EPlayerViewMode NewViewMode);
 
 private:
-	void AttachWeaponToMesh();
-	void PlayEquipMontage(bool bReverse);
+       /** Applies the current view mode locally */
+       void ApplyViewMode();
+
+       UFUNCTION(Server, Reliable)
+       void ServerSetPlayerViewMode(EPlayerViewMode NewViewMode);
+
+       UFUNCTION()
+       void OnRep_ViewMode();
+
+       void AttachWeaponToMesh();
+       void PlayEquipMontage(bool bReverse);
 
 	UFUNCTION()
 	void OnRep_WeaponActor();

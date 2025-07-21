@@ -16,6 +16,7 @@
 #include "Player/ShooterPlayerController.h"
 #include "Weapon/WeaponBase.h"
 
+// Sets default values
 AShooterCharacter::AShooterCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -85,14 +86,16 @@ AShooterCharacter::AShooterCharacter()
 void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AShooterCharacter, WeaponActor);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
+        DOREPLIFETIME(AShooterCharacter, WeaponActor);
+        DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
+        DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
+        DOREPLIFETIME(AShooterCharacter, ViewMode);
 }
 
+// Called when the game starts
 void AShooterCharacter::BeginPlay()
 {
-	Super::BeginPlay();
+        Super::BeginPlay();
 
 	// Bind On Weapon Equipped Delegate & Equip first weapon
 	if (InventoryComponent)
@@ -111,9 +114,10 @@ void AShooterCharacter::BeginPlay()
     SetPlayerViewMode(InitialView);
 }
 
+// Called every frame
 void AShooterCharacter::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+        Super::Tick(DeltaTime);
 
 	if (HasAuthority())
 	{
@@ -231,27 +235,42 @@ int32 AShooterCharacter::RequestAmmo_Implementation(FGameplayTag AmmoType, int32
 
 void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 {
-	if (!CameraComponent)
-	{
-		LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
-		return;
-	}
-	
-    // Remote players and AI should always display as third person
-    ViewMode = IsLocallyControlled() ? NewViewMode : EPlayerViewMode::ThirdPerson;
+        if (ViewMode == NewViewMode)
+        {
+                return;
+        }
 
-	switch (ViewMode)
-	{
+        if (!HasAuthority())
+        {
+                ServerSetPlayerViewMode(NewViewMode);
+        }
+
+        // Remote players and AI always remain in third person
+        ViewMode = IsLocallyControlled() ? NewViewMode : EPlayerViewMode::ThirdPerson;
+
+        ApplyViewMode();
+}
+
+void AShooterCharacter::ApplyViewMode()
+{
+        if (!CameraComponent)
+        {
+                LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
+                return;
+        }
+
+        switch (ViewMode)
+        {
         case EPlayerViewMode::FirstPerson:
                 FPMesh->SetOnlyOwnerSee(true);
                 FPMesh->SetOwnerNoSee(false);
                 FPMesh->SetHiddenInGame(false, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(true);
-               CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-               CameraSkeletalMesh->AttachToComponent(FPCameraRootSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
-               CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
-               CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
+                CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraSkeletalMesh->AttachToComponent(FPCameraRootSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+                CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
@@ -261,10 +280,10 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
                 FPMesh->SetHiddenInGame(true, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(false);
-               CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-               CameraSkeletalMesh->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
-               CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
-               CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
+                CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraSkeletalMesh->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+                CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
@@ -391,4 +410,14 @@ void AShooterCharacter::HandleCharacterDeath_Implementation(AController* Instiga
                         }, 0.02f, true); // runs every frame (50 FPS)
                 }, 0.3f, false);
         }
+}
+
+void AShooterCharacter::ServerSetPlayerViewMode_Implementation(EPlayerViewMode NewViewMode)
+{
+        SetPlayerViewMode(NewViewMode);
+}
+
+void AShooterCharacter::OnRep_ViewMode()
+{
+        ApplyViewMode();
 }
