@@ -1,4 +1,7 @@
 #include "Player/ShooterCharacter.h"
+
+// Implements the primary character used by the player. Handles weapon logic,
+// camera switching and death behaviour.
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -13,10 +16,10 @@
 #include "Inventory/InventoryComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-#include "Player/ParkourMovementComponent.h"
 #include "Player/ShooterPlayerController.h"
 #include "Weapon/WeaponBase.h"
 
+// Sets default values for this character's properties
 AShooterCharacter::AShooterCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -35,19 +38,13 @@ AShooterCharacter::AShooterCharacter()
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
-	FPRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("FP_Root"));
-	FPRootSceneComponent->SetupAttachment(RootComponent);
+       FPMeshRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Mesh_Root"));
+       FPMeshRootSpringArmComponent->SetupAttachment(RootComponent);
+       FPMeshRootSpringArmComponent->bUsePawnControlRotation = true;
 
-	FPMeshRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Mesh_Root"));
-	FPMeshRootSpringArmComponent->SetupAttachment(FPRootSceneComponent);
-	FPMeshRootSpringArmComponent->bUsePawnControlRotation = true;
-
-	OffsetRootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Offset_Root"));
-	OffsetRootSceneComponent->SetupAttachment(FPMeshRootSpringArmComponent);
-
-	FPMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
-	FPMesh->SetupAttachment(OffsetRootSceneComponent);
-	FPMesh->SetRelativeLocation(FVector(0, 0, -96));
+       FPMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
+       FPMesh->SetupAttachment(FPMeshRootSpringArmComponent);
+       FPMesh->SetRelativeLocation(FVector(0, 0, -96));
 	FPMesh->SetOnlyOwnerSee(true);
 	FPMesh->SetOwnerNoSee(false);
 	FPMesh->SetCastShadow(false);
@@ -57,9 +54,9 @@ AShooterCharacter::AShooterCharacter()
 	FPMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	FPMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 
-	FPCameraRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera_Root"));
-	FPCameraRootSpringArmComponent->SetupAttachment(FPRootSceneComponent);
-	FPCameraRootSpringArmComponent->bUsePawnControlRotation = true;
+       FPCameraRootSpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("Camera_Root"));
+       FPCameraRootSpringArmComponent->SetupAttachment(RootComponent);
+       FPCameraRootSpringArmComponent->bUsePawnControlRotation = true;
 
 	CameraSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Camera_SkeletalMesh"));
 	CameraSkeletalMesh->SetupAttachment(FPCameraRootSpringArmComponent);
@@ -75,7 +72,6 @@ AShooterCharacter::AShooterCharacter()
 	TPSpringArmComponent->SocketOffset = FVector(0, 50, 50);
 	TPSpringArmComponent->SetRelativeLocation(FVector(0, 0, 96));
 
-	ParkourMovementComponent = CreateDefaultSubobject<UParkourMovementComponent>(TEXT("Parkour Movement"));
 
 	GetCharacterMovement()->MaxWalkSpeed = 1200.0f;
 	GetCharacterMovement()->GravityScale = 2.0f;
@@ -90,17 +86,20 @@ AShooterCharacter::AShooterCharacter()
 	WeaponSocketName = TEXT("WeaponPoint");
 }
 
+// Register all replicated properties for this class
 void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AShooterCharacter, WeaponActor);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
-	DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
+        DOREPLIFETIME(AShooterCharacter, WeaponActor);
+        DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
+        DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
+        DOREPLIFETIME(AShooterCharacter, ViewMode);
 }
 
+// Called when the game starts or when spawned
 void AShooterCharacter::BeginPlay()
 {
-	Super::BeginPlay();
+        Super::BeginPlay();
 
 	// Bind On Weapon Equipped Delegate & Equip first weapon
 	if (InventoryComponent)
@@ -119,9 +118,10 @@ void AShooterCharacter::BeginPlay()
     SetPlayerViewMode(InitialView);
 }
 
+// Update per-frame state and animations
 void AShooterCharacter::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+        Super::Tick(DeltaTime);
 
 	if (HasAuthority())
 	{
@@ -133,6 +133,7 @@ void AShooterCharacter::Tick(float DeltaTime)
 	}
 }
 
+// Called when a new weapon is equipped
 void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 {
 	if (!IsValid(InventoryComponent) || !InventoryComponent->GetEquippedWeapon())
@@ -164,6 +165,7 @@ void AShooterCharacter::OnWeaponEquipped(float EquipCooldownDuration)
 	SetPlayerViewMode(ViewMode);
 }
 
+// Instantly kills this character via damage application
 void AShooterCharacter::Kill()
 {
 	UGameplayStatics::ApplyDamage(
@@ -175,6 +177,7 @@ void AShooterCharacter::Kill()
 	);
 }
 
+// Triggers the equipped weapon to start firing
 void AShooterCharacter::BeginFire()
 {
 	if (!IsValid(InventoryComponent) || !IsValid(WeaponActor))
@@ -192,6 +195,7 @@ void AShooterCharacter::BeginFire()
 	}
 }
 
+// Stops the current firing sequence
 void AShooterCharacter::EndFire()
 {
 	if (WeaponActor)
@@ -200,6 +204,7 @@ void AShooterCharacter::EndFire()
 	}
 }
 
+// Attempts to reload the current weapon if ammo is available
 void AShooterCharacter::ReloadWeapon()
 {
 	if (!IsValid(InventoryComponent))
@@ -218,6 +223,7 @@ void AShooterCharacter::ReloadWeapon()
 	}
 }
 
+// IAmmoProvider interface - supplies ammo to other weapons
 int32 AShooterCharacter::RequestAmmo_Implementation(FGameplayTag AmmoType, int32 RequestedAmount)
 {
 	if (!InventoryComponent)
@@ -237,29 +243,46 @@ int32 AShooterCharacter::RequestAmmo_Implementation(FGameplayTag AmmoType, int32
 	return Provided;
 }
 
+// Switch between first and third person camera modes
 void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
 {
-	if (!CameraComponent)
-	{
-		LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
-		return;
-	}
-	
-    // Remote players and AI should always display as third person
-    ViewMode = IsLocallyControlled() ? NewViewMode : EPlayerViewMode::ThirdPerson;
+        if (ViewMode == NewViewMode)
+        {
+                return;
+        }
 
-	switch (ViewMode)
-	{
+        if (!HasAuthority())
+        {
+                ServerSetPlayerViewMode(NewViewMode);
+        }
+
+        // Remote players and AI always remain in third person
+        ViewMode = IsLocallyControlled() ? NewViewMode : EPlayerViewMode::ThirdPerson;
+
+        ApplyViewMode();
+}
+
+// Applies the current view mode locally
+void AShooterCharacter::ApplyViewMode()
+{
+        if (!CameraComponent)
+        {
+                LOG_ERROR("Cannot change view mode, CameraComponent is invalid");
+                return;
+        }
+
+        switch (ViewMode)
+        {
         case EPlayerViewMode::FirstPerson:
                 FPMesh->SetOnlyOwnerSee(true);
                 FPMesh->SetOwnerNoSee(false);
                 FPMesh->SetHiddenInGame(false, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(true);
-                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-                CameraComponent->AttachToComponent(CameraSkeletalMesh, FAttachmentTransformRules::KeepRelativeTransform);
-                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+                CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraSkeletalMesh->AttachToComponent(FPCameraRootSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+                CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
@@ -269,10 +292,10 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
                 FPMesh->SetHiddenInGame(true, true);
                 GetMesh()->SetOnlyOwnerSee(false);
                 GetMesh()->SetOwnerNoSee(false);
-                CameraComponent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-                CameraComponent->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
-                CameraComponent->SetRelativeLocation(FVector::ZeroVector);
-                CameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+                CameraSkeletalMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+                CameraSkeletalMesh->AttachToComponent(TPSpringArmComponent, FAttachmentTransformRules::KeepRelativeTransform);
+                CameraSkeletalMesh->SetRelativeLocation(FVector::ZeroVector);
+                CameraSkeletalMesh->SetRelativeRotation(FRotator::ZeroRotator);
                 bUseControllerRotationYaw = true;
                 bUseControllerRotationRoll = false;
                 break;
@@ -287,6 +310,7 @@ void AShooterCharacter::SetPlayerViewMode(EPlayerViewMode NewViewMode)
         }
 }
 
+// Attaches the weapon meshes to the appropriate character meshes
 void AShooterCharacter::AttachWeaponToMesh()
 {
 	if (!IsValid(WeaponActor))
@@ -306,6 +330,7 @@ void AShooterCharacter::AttachWeaponToMesh()
 	WeaponActor->GetTPWeaponMeshComponent()->SetRelativeLocation(WeaponActor->GetWeaponOffset());
 }
 
+// Plays the equip animation montage either forwards or backwards
 void AShooterCharacter::PlayEquipMontage(const bool bReverse)
 {
 	if (!EquipMontage)
@@ -323,6 +348,7 @@ void AShooterCharacter::PlayEquipMontage(const bool bReverse)
 	}
 }
 
+// Replication callback for WeaponActor
 void AShooterCharacter::OnRep_WeaponActor()
 {
         AttachWeaponToMesh();
@@ -332,6 +358,7 @@ void AShooterCharacter::OnRep_WeaponActor()
         }
 }
 
+// Handles logic for when the character dies
 void AShooterCharacter::HandleCharacterDeath_Implementation(AController* InstigatedBy, AActor* DamageCauser)
 {
 	// Remove and destroy weapon
@@ -368,7 +395,10 @@ void AShooterCharacter::HandleCharacterDeath_Implementation(AController* Instiga
                 FTimerHandle CameraTimerHandle;
                 GetWorldTimerManager().SetTimer(CameraTimerHandle, [this, PC]()
                 {
-                        if (!PC) return;
+                        if (!PC)
+                        {
+                                return;
+                        }
 
                         // Spawn a camera actor behind and above the character
                         const FVector Offset = FVector(-300, 0, 150);
@@ -380,7 +410,10 @@ void AShooterCharacter::HandleCharacterDeath_Implementation(AController* Instiga
 
                         ACameraActor* TrackingCamera = GetWorld()->SpawnActor<ACameraActor>(
                                 InitialLocation, InitialRotation, SpawnParams);
-                        if (!TrackingCamera) return;
+                        if (!TrackingCamera)
+                        {
+                                return;
+                        }
 
                         PC->SetViewTargetWithBlend(TrackingCamera, 1.0f);
 
@@ -388,7 +421,10 @@ void AShooterCharacter::HandleCharacterDeath_Implementation(AController* Instiga
                         FTimerHandle FollowTimerHandle;
                         GetWorldTimerManager().SetTimer(FollowTimerHandle, [this, TrackingCamera]()
                         {
-                                if (!IsValid(this) || !IsValid(TrackingCamera)) return;
+                                if (!IsValid(this) || !IsValid(TrackingCamera))
+                                {
+                                        return;
+                                }
 
                                 const FVector FocusPoint = GetMesh()->GetComponentLocation();
                                 const FVector CamLocation = FocusPoint + FVector(-300, 0, 150);
@@ -399,4 +435,16 @@ void AShooterCharacter::HandleCharacterDeath_Implementation(AController* Instiga
                         }, 0.02f, true); // runs every frame (50 FPS)
                 }, 0.3f, false);
         }
+}
+
+// Server RPC for view mode switching
+void AShooterCharacter::ServerSetPlayerViewMode_Implementation(EPlayerViewMode NewViewMode)
+{
+        SetPlayerViewMode(NewViewMode);
+}
+
+// Called on clients when ViewMode is updated
+void AShooterCharacter::OnRep_ViewMode()
+{
+        ApplyViewMode();
 }
