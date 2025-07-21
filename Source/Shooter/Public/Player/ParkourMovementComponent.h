@@ -3,18 +3,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "ParkourMovementComponent.generated.h"
 
 class ACharacter;
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class SHOOTER_API UParkourMovementComponent : public UActorComponent
+UCLASS(ClassGroup=(Movement), meta=(BlueprintSpawnableComponent))
+class SHOOTER_API UParkourMovementComponent : public UCharacterMovementComponent
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
 public:
-	UParkourMovementComponent();
+       UParkourMovementComponent();
+
+       virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+       virtual void UpdateFromCompressedFlags(uint8 Flags) override;
+       virtual class FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Parkour Movement")
@@ -45,15 +50,24 @@ protected:
 	float WallRunJumpHeight;
 
 private:
-	UPROPERTY()
-	ACharacter* OwnerCharacter;
 
-	bool bIsWallRunning;
-	bool bIsWallRunningLeft;
-	bool bIsWallRunningRight;
-	bool bIsWallSuppressed;
-	float InitialGravityScale;
-	FVector WallRunNormal;
+       UPROPERTY(Replicated)
+       bool bIsWallRunning;
+
+       UPROPERTY(Replicated)
+       bool bIsWallRunningLeft;
+
+       UPROPERTY(Replicated)
+       bool bIsWallRunningRight;
+
+       UPROPERTY(Replicated)
+       bool bIsWallSuppressed;
+
+       UPROPERTY(Replicated)
+       float InitialGravityScale;
+
+       UPROPERTY(Replicated)
+       FVector WallRunNormal;
 
 	FTimerHandle UpdateTimerHandle;
 	FTimerHandle WallRunSuppressTimerHandle;
@@ -97,5 +111,30 @@ public:
 	FORCEINLINE bool GetIsWallRunningRight() const { return bIsWallRunningRight; }
 
 	UFUNCTION(BlueprintCallable)
-	FORCEINLINE bool GetIsWallRunning() const { return bIsWallRunning; }
+        FORCEINLINE bool GetIsWallRunning() const { return bIsWallRunning; }
+};
+
+// Saved move for predicting wall run state
+class FSavedMove_Parkour : public FSavedMove_Character
+{
+public:
+    typedef FSavedMove_Character Super;
+
+    bool bSavedIsWallRunning = false;
+    bool bSavedIsWallRunningLeft = false;
+    bool bSavedIsWallRunningRight = false;
+    bool bSavedIsWallSuppressed = false;
+
+    virtual void Clear() override;
+    virtual uint8 GetCompressedFlags() const override;
+    virtual void SetMoveFor(ACharacter* Character, float InDeltaTime, FVector const& NewAccel, FNetworkPredictionData_Client_Character& ClientData) override;
+    virtual void PrepMoveFor(ACharacter* Character) override;
+};
+
+class FNetworkPredictionData_Client_Parkour : public FNetworkPredictionData_Client_Character
+{
+public:
+    FNetworkPredictionData_Client_Parkour(const UCharacterMovementComponent& ClientMovement);
+
+    virtual FSavedMovePtr AllocateNewMove() override;
 };

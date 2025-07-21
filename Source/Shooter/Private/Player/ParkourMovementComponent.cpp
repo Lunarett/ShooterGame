@@ -1,12 +1,13 @@
 #include "Player/ParkourMovementComponent.h"
 #include "Debug/LoggerMacros.h"
 #include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 UParkourMovementComponent::UParkourMovementComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+        PrimaryComponentTick.bCanEverTick = true;
+        SetIsReplicatedByDefault(true);
 
 	UpdateRate = 0.02f;
 
@@ -22,21 +23,13 @@ void UParkourMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AActor* OwnerActor = GetOwner();
-	if (!IsValid(OwnerActor))
-	{
-		LOG_ERROR_SCREEN("Owner is invalid!");
-		return;
-	}
+    if (!CharacterOwner)
+    {
+            LOG_ERROR_SCREEN("ParkourMovementComponent has no character owner!");
+            return;
+    }
 
-	OwnerCharacter = Cast<ACharacter>(OwnerActor);
-	if (!IsValid(OwnerCharacter))
-	{
-		LOG_ERROR_SCREEN("Cast to Character failed! Parkour Component can only be used on Characters!");
-		return;
-	}
-
-	InitialGravityScale = OwnerCharacter->GetCharacterMovement()->GravityScale;
+    InitialGravityScale = CharacterOwner->GetCharacterMovement()->GravityScale;
 
 	GetWorld()->GetTimerManager().SetTimer(UpdateTimerHandle, this, &UParkourMovementComponent::UpdateParkourMovement,
 	                                       UpdateRate, true);
@@ -76,7 +69,7 @@ void UParkourMovementComponent::UpdateWallRun()
 	FVector Left, Right;
 	GetWallRunEndVectors(Left, Right);
 
-	if (HandleWallRunning(OwnerCharacter->GetActorLocation(), Right, -1.0f))
+    if (HandleWallRunning(CharacterOwner->GetActorLocation(), Right, -1.0f))
 	{
 		bIsWallRunning = true;
 		bIsWallRunningLeft = false;
@@ -88,7 +81,7 @@ void UParkourMovementComponent::UpdateWallRun()
 	}
 	else
 	{
-		if (HandleWallRunning(OwnerCharacter->GetActorLocation(), Left, 1.0f))
+            if (HandleWallRunning(CharacterOwner->GetActorLocation(), Left, 1.0f))
 		{
 			bIsWallRunning = true;
 			bIsWallRunningLeft = true;
@@ -100,11 +93,11 @@ void UParkourMovementComponent::UpdateWallRun()
 		}
 	}
 
-	const float InterpolatedGravityScale = UKismetMathLibrary::FInterpTo(
-		OwnerCharacter->GetCharacterMovement()->GravityScale,
-		WallRunGravity, GetWorld()->GetDeltaSeconds(), 0.01f);
+        const float InterpolatedGravityScale = UKismetMathLibrary::FInterpTo(
+                GravityScale,
+                WallRunGravity, GetWorld()->GetDeltaSeconds(), 0.01f);
 
-	OwnerCharacter->GetCharacterMovement()->GravityScale = InterpolatedGravityScale;
+        GravityScale = InterpolatedGravityScale;
 }
 
 bool UParkourMovementComponent::HandleWallRunning(const FVector& Start, const FVector& End, const float Direction)
@@ -115,21 +108,21 @@ bool UParkourMovementComponent::HandleWallRunning(const FVector& Start, const FV
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, CollisionParams))
 	{
-		const bool bIsFalling = OwnerCharacter->GetCharacterMovement()->IsFalling();
+                const bool bIsFalling = IsFalling();
 
 		// Climb only on actors that have the tag
 		if (HitResult.GetActor()->ActorHasTag(ActorWallTag) && bIsFalling &&
 			IsValidImpactNormal(HitResult.ImpactNormal))
 		{
-			OwnerCharacter->GetCharacterMovement()->GravityScale = WallRunGravity;
+                        GravityScale = WallRunGravity;
 			WallRunNormal = HitResult.ImpactNormal;
 
 			const FVector StickToWallVelocity = CalculateStickToWallVelocity();
 			const FVector ForwardVelocity = (FVector::CrossProduct(WallRunNormal, FVector(0.0f, 0.0f, 1.0f)) * (
 				WallRunSpeed * Direction));
 
-			OwnerCharacter->LaunchCharacter(StickToWallVelocity, false, false);
-			OwnerCharacter->LaunchCharacter(ForwardVelocity, true, !bUseGravity);
+                        CharacterOwner->LaunchCharacter(StickToWallVelocity, false, false);
+                        CharacterOwner->LaunchCharacter(ForwardVelocity, true, !bUseGravity);
 
 			return true;
 		}
@@ -149,7 +142,7 @@ void UParkourMovementComponent::WallRunEnd(float ResetTimer)
 	bIsWallRunningRight = false;
 	bIsWallRunningLeft = false;
 
-	OwnerCharacter->GetCharacterMovement()->GravityScale = InitialGravityScale;
+    GravityScale = InitialGravityScale;
 	SuppressWallRunning(ResetTimer);
 }
 
@@ -168,17 +161,17 @@ void UParkourMovementComponent::SuppressWallRunning(const float Delay)
 
 void UParkourMovementComponent::CameraTilt(float Roll)
 {
-	if (!IsValid(OwnerCharacter) || !IsValid(OwnerCharacter->GetController()))
+    if (!IsValid(CharacterOwner) || !IsValid(CharacterOwner->GetController()))
 	{
 		return;
 	}
 	
-	const FRotator ControlRotation = OwnerCharacter->GetController()->GetControlRotation();
+    const FRotator ControlRotation = CharacterOwner->GetController()->GetControlRotation();
 	const FRotator TargetRotation = FRotator(ControlRotation.Pitch, ControlRotation.Yaw, Roll);
-	const FRotator TiltRotation = UKismetMathLibrary::RInterpTo(OwnerCharacter->GetController()->GetControlRotation(),
+    const FRotator TiltRotation = UKismetMathLibrary::RInterpTo(CharacterOwner->GetController()->GetControlRotation(),
 	                                                            TargetRotation, GetWorld()->GetDeltaSeconds(), 10.0f);
 
-	OwnerCharacter->GetController()->SetControlRotation(TiltRotation);
+    CharacterOwner->GetController()->SetControlRotation(TiltRotation);
 }
 
 void UParkourMovementComponent::WallRunLand()
@@ -199,19 +192,19 @@ void UParkourMovementComponent::WallRunJump()
 	const FVector LaunchVelocity = FVector(WallRunNormal.X * WallRunJumpOffForce, WallRunNormal.Y * WallRunJumpOffForce,
 	                                       WallRunJumpHeight);
 
-	OwnerCharacter->LaunchCharacter(LaunchVelocity, false, true);
+    CharacterOwner->LaunchCharacter(LaunchVelocity, false, true);
 }
 
 void UParkourMovementComponent::GetWallRunEndVectors(FVector& Left, FVector& Right)
 {
-	if (!IsValid(OwnerCharacter))
+    if (!IsValid(CharacterOwner))
 	{
 		return;
 	}
 
-	const FVector OwnerLocation = OwnerCharacter->GetActorLocation();
-	const FVector OwnerRightVector = OwnerCharacter->GetActorRightVector();
-	const FVector OwnerForwardVector = OwnerCharacter->GetActorForwardVector();
+    const FVector OwnerLocation = CharacterOwner->GetActorLocation();
+    const FVector OwnerRightVector = CharacterOwner->GetActorRightVector();
+    const FVector OwnerForwardVector = CharacterOwner->GetActorForwardVector();
 
 	Right = OwnerLocation + (OwnerRightVector * TraceDistance) + (OwnerForwardVector * TraceAngle);
 	Left = OwnerLocation + (OwnerRightVector * -TraceDistance) - (OwnerForwardVector * TraceAngle);
@@ -224,9 +217,105 @@ bool UParkourMovementComponent::IsValidImpactNormal(const FVector& ImpactNormal)
 
 FVector UParkourMovementComponent::CalculateStickToWallVelocity()
 {
-	const FVector Location = OwnerCharacter->GetActorLocation();
-	const FVector Combined = Location + WallRunNormal;
-	const float Length = Combined.Length();
+        const FVector Location = CharacterOwner->GetActorLocation();
+        const FVector Combined = Location + WallRunNormal;
+        const float Length = Combined.Length();
 
-	return WallRunNormal * Length;
+        return WallRunNormal * Length;
+}
+
+void UParkourMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+       Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunning);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningLeft);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallRunningRight);
+       DOREPLIFETIME(UParkourMovementComponent, bIsWallSuppressed);
+       DOREPLIFETIME(UParkourMovementComponent, InitialGravityScale);
+       DOREPLIFETIME(UParkourMovementComponent, WallRunNormal);
+}
+
+void UParkourMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
+{
+    Super::UpdateFromCompressedFlags(Flags);
+
+    bIsWallRunning = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
+    bIsWallRunningLeft = (Flags & FSavedMove_Character::FLAG_Custom_1) != 0;
+    bIsWallRunningRight = (Flags & FSavedMove_Character::FLAG_Custom_2) != 0;
+    bIsWallSuppressed = (Flags & FSavedMove_Character::FLAG_Custom_3) != 0;
+}
+
+FNetworkPredictionData_Client* UParkourMovementComponent::GetPredictionData_Client() const
+{
+    check(PawnOwner != nullptr);
+
+    if (!ClientPredictionData)
+    {
+        UParkourMovementComponent* MutableThis = const_cast<UParkourMovementComponent*>(this);
+        MutableThis->ClientPredictionData = new FNetworkPredictionData_Client_Parkour(*this);
+        MutableThis->ClientPredictionData->MaxSmoothNetUpdateDist = 92.f;
+        MutableThis->ClientPredictionData->NoSmoothNetUpdateDist = 140.f;
+    }
+
+    return ClientPredictionData;
+}
+
+void FSavedMove_Parkour::Clear()
+{
+    Super::Clear();
+    bSavedIsWallRunning = false;
+    bSavedIsWallRunningLeft = false;
+    bSavedIsWallRunningRight = false;
+    bSavedIsWallSuppressed = false;
+}
+
+uint8 FSavedMove_Parkour::GetCompressedFlags() const
+{
+    uint8 Result = Super::GetCompressedFlags();
+
+    if (bSavedIsWallRunning)   Result |= FLAG_Custom_0;
+    if (bSavedIsWallRunningLeft) Result |= FLAG_Custom_1;
+    if (bSavedIsWallRunningRight) Result |= FLAG_Custom_2;
+    if (bSavedIsWallSuppressed) Result |= FLAG_Custom_3;
+
+    return Result;
+}
+
+void FSavedMove_Parkour::SetMoveFor(ACharacter* Character, float InDeltaTime, FVector const& NewAccel, FNetworkPredictionData_Client_Character& ClientData)
+{
+    Super::SetMoveFor(Character, InDeltaTime, NewAccel, ClientData);
+
+    const UParkourMovementComponent* MoveComp = Cast<UParkourMovementComponent>(Character->GetCharacterMovement());
+    if (MoveComp)
+    {
+        bSavedIsWallRunning = MoveComp->bIsWallRunning;
+        bSavedIsWallRunningLeft = MoveComp->bIsWallRunningLeft;
+        bSavedIsWallRunningRight = MoveComp->bIsWallRunningRight;
+        bSavedIsWallSuppressed = MoveComp->bIsWallSuppressed;
+    }
+}
+
+void FSavedMove_Parkour::PrepMoveFor(ACharacter* Character)
+{
+    Super::PrepMoveFor(Character);
+
+    UParkourMovementComponent* MoveComp = Cast<UParkourMovementComponent>(Character->GetCharacterMovement());
+    if (MoveComp)
+    {
+        MoveComp->bIsWallRunning = bSavedIsWallRunning;
+        MoveComp->bIsWallRunningLeft = bSavedIsWallRunningLeft;
+        MoveComp->bIsWallRunningRight = bSavedIsWallRunningRight;
+        MoveComp->bIsWallSuppressed = bSavedIsWallSuppressed;
+    }
+}
+
+FNetworkPredictionData_Client_Parkour::FNetworkPredictionData_Client_Parkour(const UCharacterMovementComponent& ClientMovement)
+    : Super(ClientMovement)
+{
+}
+
+FSavedMovePtr FNetworkPredictionData_Client_Parkour::AllocateNewMove()
+{
+    return FSavedMovePtr(new FSavedMove_Parkour());
 }

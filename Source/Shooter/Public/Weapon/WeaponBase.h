@@ -129,14 +129,14 @@ private:
 	UWeaponRecoilComponent* RecoilComponent;
 	
 private:
-	UPROPERTY(Transient)
-	UWeaponFireModeBase* FireModeBehavior;
+       UPROPERTY(Transient)
+       UWeaponFireModeBase* FireModeBehavior;
 
 	UPROPERTY(Replicated)
 	AShooterCharacter* OwnerShooterCharacter;
 
-	UPROPERTY(Replicated)
-	int32 CurrentClipAmmo;
+       UPROPERTY(ReplicatedUsing=OnRep_CurrentClipAmmo)
+       int32 CurrentClipAmmo;
 
 	FTimerHandle FireTimerHandle;
 	FTimerHandle ReloadTimerHandle;
@@ -144,8 +144,8 @@ private:
 	bool bIsReloadingWeapon;
 	
 protected:
-	UPROPERTY(BlueprintAssignable)
-	FOnWeaponFired OnWeaponFiredDelegate;
+       UPROPERTY(BlueprintAssignable)
+       FOnWeaponFired OnWeaponFiredDelegate;
 	
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -154,8 +154,15 @@ protected:
 	virtual void Destroyed() override;
 
 private:
-	UFUNCTION()
-	void OnLookInput(const FInputActionValue& Value);
+       UFUNCTION()
+       void OnLookInput(const FInputActionValue& Value);
+
+       UFUNCTION()
+       void OnRep_CurrentClipAmmo();
+
+       // Play recoil and camera shake locally on the owning client
+       UFUNCTION(Client, Reliable)
+       void ClientPlayLocalFireEffects();
 	
 public:
 	void SetViewMode(EPlayerViewMode ViewMode);

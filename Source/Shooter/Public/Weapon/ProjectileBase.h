@@ -45,7 +45,10 @@ protected:
 	float DamageAmount;
 
 private:
-	FTimerHandle LifetimeTimerHandle;
+        FTimerHandle LifetimeTimerHandle;
+
+       UFUNCTION(NetMulticast, Reliable)
+       void MulticastSpawnImpactEffects(const FVector& Location, const FRotator& Rotation);
 
 protected:
 	virtual void BeginPlay() override;
