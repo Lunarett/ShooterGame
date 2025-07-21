@@ -99,11 +99,34 @@ private:
        // --------------------------------------------------------------------
        // Replicated state
        // --------------------------------------------------------------------
-       UPROPERTY(Replicated)
+       /** Yaw used for third person aim offset animations */
+       UPROPERTY(ReplicatedUsing = OnRep_AimOffsetYaw)
+       float ReplicatedAimOffsetYaw;
+
+       /** Pitch used for third person aim offset animations */
+       UPROPERTY(ReplicatedUsing = OnRep_AimOffsetPitch)
+       float ReplicatedAimOffsetPitch;
+
+       /** Locally calculated yaw */
        float AimOffsetYaw;
 
-	UPROPERTY(Replicated)
-	float AimOffsetPitch;
+       /** Locally calculated pitch */
+       float AimOffsetPitch;
+
+       /** Time of last aim offset update sent to the server */
+       float LastAimOffsetUpdateTime;
+
+       /** Last yaw value sent to the server */
+       float LastSentAimOffsetYaw;
+
+       /** Last pitch value sent to the server */
+       float LastSentAimOffsetPitch;
+
+       /** Interval in seconds between aim offset updates */
+       float AimOffsetRepInterval;
+
+       /** Minimum delta before sending a new aim offset */
+       float AimOffsetSendThreshold;
 
 	bool bCanInteractWithWeapon;
 
@@ -151,9 +174,21 @@ private:
        UFUNCTION(Server, Reliable)
        void ServerSetPlayerViewMode(EPlayerViewMode NewViewMode);
 
+       UFUNCTION(Server, Unreliable)
+       void ServerUpdateAimOffset(float Yaw, float Pitch);
+
        UFUNCTION()
        /** Called when ViewMode is replicated */
        void OnRep_ViewMode();
+
+       UFUNCTION()
+       void OnRep_AimOffsetYaw();
+
+       UFUNCTION()
+       void OnRep_AimOffsetPitch();
+
+       /** Updates and potentially replicates aim offset values */
+       void UpdateAimOffset(float DeltaTime);
 
        void AttachWeaponToMesh();
        void PlayEquipMontage(bool bReverse);

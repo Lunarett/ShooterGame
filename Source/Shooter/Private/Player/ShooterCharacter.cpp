@@ -81,19 +81,30 @@ AShooterCharacter::AShooterCharacter()
 
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
 
-	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+       InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 
-	WeaponSocketName = TEXT("WeaponPoint");
+       WeaponSocketName = TEXT("WeaponPoint");
+
+       // Initialize aim offset replication parameters
+       AimOffsetYaw = 0.0f;
+       AimOffsetPitch = 0.0f;
+       ReplicatedAimOffsetYaw = 0.0f;
+       ReplicatedAimOffsetPitch = 0.0f;
+       LastAimOffsetUpdateTime = 0.0f;
+       LastSentAimOffsetYaw = 0.0f;
+       LastSentAimOffsetPitch = 0.0f;
+       AimOffsetRepInterval = 0.1f;
+       AimOffsetSendThreshold = 5.0f;
 }
 
 // Register all replicated properties for this class
 void AShooterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-        DOREPLIFETIME(AShooterCharacter, WeaponActor);
-        DOREPLIFETIME(AShooterCharacter, AimOffsetYaw);
-        DOREPLIFETIME(AShooterCharacter, AimOffsetPitch);
-        DOREPLIFETIME(AShooterCharacter, ViewMode);
+       DOREPLIFETIME(AShooterCharacter, WeaponActor);
+       DOREPLIFETIME(AShooterCharacter, ReplicatedAimOffsetYaw);
+       DOREPLIFETIME(AShooterCharacter, ReplicatedAimOffsetPitch);
+       DOREPLIFETIME(AShooterCharacter, ViewMode);
 }
 
 // Called when the game starts or when spawned
@@ -121,16 +132,12 @@ void AShooterCharacter::BeginPlay()
 // Update per-frame state and animations
 void AShooterCharacter::Tick(float DeltaTime)
 {
-        Super::Tick(DeltaTime);
+       Super::Tick(DeltaTime);
 
-	if (HasAuthority())
-	{
-		// Update aim offsets for TP Mesh
-		FRotator AimOffsets = GetBaseAimRotation();
-		AimOffsets.Normalize();
-		AimOffsetPitch = FMath::Clamp(AimOffsets.Pitch, -90.0f, 90.0f);
-		AimOffsetYaw = FMath::Clamp(AimOffsets.Yaw, -90.0f, 90.0f);
-	}
+       if (IsLocallyControlled() || IsPawnAIControlled())
+       {
+               UpdateAimOffset(DeltaTime);
+       }
 }
 
 // Called when a new weapon is equipped
@@ -446,5 +453,49 @@ void AShooterCharacter::ServerSetPlayerViewMode_Implementation(EPlayerViewMode N
 // Called on clients when ViewMode is updated
 void AShooterCharacter::OnRep_ViewMode()
 {
-        ApplyViewMode();
+       ApplyViewMode();
+}
+
+// Update aim offset values and replicate to the server if needed
+void AShooterCharacter::UpdateAimOffset(float DeltaTime)
+{
+       FRotator AimRot = GetBaseAimRotation();
+       AimRot.Normalize();
+
+       AimOffsetPitch = FMath::Clamp(AimRot.Pitch, -90.0f, 90.0f);
+       AimOffsetYaw = FMath::Clamp(AimRot.Yaw, -90.0f, 90.0f);
+
+       if (IsLocallyControlled())
+       {
+               const float WorldTime = GetWorld()->GetTimeSeconds();
+               const bool bTimeExceeded = WorldTime - LastAimOffsetUpdateTime >= AimOffsetRepInterval;
+               const bool bYawChanged = FMath::Abs(AimOffsetYaw - LastSentAimOffsetYaw) > AimOffsetSendThreshold;
+               const bool bPitchChanged = FMath::Abs(AimOffsetPitch - LastSentAimOffsetPitch) > AimOffsetSendThreshold;
+
+               if (bTimeExceeded || bYawChanged || bPitchChanged)
+               {
+                       ServerUpdateAimOffset(AimOffsetYaw, AimOffsetPitch);
+                       LastAimOffsetUpdateTime = WorldTime;
+                       LastSentAimOffsetYaw = AimOffsetYaw;
+                       LastSentAimOffsetPitch = AimOffsetPitch;
+               }
+       }
+}
+
+void AShooterCharacter::ServerUpdateAimOffset_Implementation(float Yaw, float Pitch)
+{
+       ReplicatedAimOffsetYaw = Yaw;
+       ReplicatedAimOffsetPitch = Pitch;
+       AimOffsetYaw = Yaw;
+       AimOffsetPitch = Pitch;
+}
+
+void AShooterCharacter::OnRep_AimOffsetYaw()
+{
+       AimOffsetYaw = ReplicatedAimOffsetYaw;
+}
+
+void AShooterCharacter::OnRep_AimOffsetPitch()
+{
+       AimOffsetPitch = ReplicatedAimOffsetPitch;
 }
